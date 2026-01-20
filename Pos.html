@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS (Caja)</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="Estilos/POS.css" />
+</head>
+
+<body>
+
+  <!-- TOP -->
+  <header class="topfb">
+    <div class="topfb-inner">
+
+      <!-- LEFT -->
+      <div class="topfb-left">
+        <div class="topfb-brand">
+          <div class="topfb-badge" id="bizInitial">Z</div>
+          <div class="d-none d-xl-block" style="line-height:1.1">
+            <div style="font-weight:800;color:var(--txt)" id="bizHandle">@fefef</div>
+          </div>
+        </div>
+
+        <div class="topfb-search">
+          <i class="bi bi-search"></i>
+          <input id="topSearch" type="text" placeholder="Buscar en tu POS..." />
+        </div>
+      </div>
+
+      <!-- CENTER -->
+      <nav class="topfb-center" aria-label="Navegación">
+        <a class="topfb-tab nav-item" href="Dashboard.html" data-screen="home" title="Inicio">
+          <i class="bi bi-house-door"></i>
+        </a>
+
+        <a class="topfb-tab nav-item" href="Pos.html" data-screen="pos" title="Caja (POS)">
+          <i class="bi bi-credit-card-2-front"></i>
+        </a>
+
+        <a class="topfb-tab nav-item" href="Inventario.html" data-screen="inventory" title="Inventario">
+          <i class="bi bi-box-seam"></i>
+        </a>
+
+        <a class="topfb-tab nav-item" href="Reportes.html" data-screen="reports" title="Reportes">
+          <i class="bi bi-bar-chart"></i>
+        </a>
+
+        <a class="topfb-tab nav-item" href="Equipo.html" data-screen="team" title="Equipo">
+          <i class="bi bi-people"></i>
+        </a>
+      </nav>
+
+      <!-- RIGHT -->
+      <div class="topfb-right">
+        <button class="topfb-iconbtn" id="btnOpenPost" type="button" title="Crear">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+
+        <button class="topfb-iconbtn" id="btnTheme" type="button" title="Tema">
+          <i class="bi bi-moon-stars"></i>
+        </button>
+
+        <button class="topfb-iconbtn" type="button" title="Perfil">
+          <i class="bi bi-person"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <main class="content">
+
+    <!-- LEFT: PRODUCTS -->
+    <section class="panel">
+      <div class="cardx p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="fw-semibold">Productos</div>
+          <button class="btn btn-primary btn-sm" id="btnOpenProductModal" type="button">+ Nuevo</button>
+        </div>
+
+        <input class="form-control mb-2" id="productSearch" placeholder="Buscar producto..." />
+        <div id="productList" class="list"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: CART / CHECKOUT -->
+    <section class="panel">
+      <div class="cardx p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Carrito</div>
+          <button class="btn btn-soft btn-sm" id="btnClearCart" type="button">Vaciar</button>
+        </div>
+
+        <input class="form-control mb-2" id="posSearch" placeholder="Buscar y agregar al carrito..." />
+
+        <div id="cartList" class="list mb-2"></div>
+
+        <div class="summary">
+          <div class="d-flex justify-content-between">
+            <span class="muted">Subtotal</span>
+            <span id="subtotalLabel">$0.00</span>
+          </div>
+
+          <div class="d-flex justify-content-between">
+            <span class="muted">Descuento</span>
+            <div class="d-flex align-items-center gap-2">
+              <input class="form-control form-control-sm w-50" id="discountInput" type="number" min="0" step="0.01" value="0" />
+              <span class="muted">$</span>
+            </div>
+          </div>
+
+          <hr style="border-color: rgba(255,255,255,.10);" />
+
+          <div class="d-flex justify-content-between fs-5 fw-bold">
+            <span>Total</span>
+            <span id="totalLabel">$0.00</span>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label class="form-label small muted">Método de pago</label>
+          <select id="paymentMethod" class="form-select">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Tarjeta">Tarjeta</option>
+            <option value="Transferencia">Transferencia</option>
+            <option value="Mixto">Mixto</option>
+          </select>
+        </div>
+
+        <div class="mt-3 d-grid gap-2">
+          <button class="btn btn-success" id="btnCheckout" type="button">Cobrar</button>
+          <div id="posMsg" class="alert alert-danger py-2 d-none"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CENTER-BOTTOM: SALES (ABAJO EN MEDIO, SOLO “RECENTES” + BOTÓN DESGLOSE) -->
+ <section class="sales-middle">
+  <div class="cardx p-3 mt-3 sales-card">
+
+    <!-- HEADER -->
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+      <div>
+        <div class="fw-semibold">Ventas</div>
+        <div class="muted tiny" id="salesHint">Últimas ventas registradas</div>
+      </div>
+
+      <button class="btn btn-soft btn-sm"
+        id="btnSalesToggle"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#salesBreakdown"
+        aria-expanded="false"
+        aria-controls="salesBreakdown">
+        <i class="bi bi-list-ul me-1"></i> Desglose
+      </button>
+    </div>
+
+    <div id="salesRecentWrap" class="sales-block">
+      <div id="salesList" class="list small" style="max-height:240px;"></div>
+    </div>
+
+    <div class="collapse mt-3" id="salesBreakdown">
+
+      <!-- RESUMEN HOY -->
+      <div class="sales-section">
+        <div class="sales-section-title">
+          <span class="fw-semibold">Resumen de hoy</span>
+        </div>
+
+        <div class="sales-summary cardx p-3">
+          <div class="d-flex align-items-baseline justify-content-between mb-2">
+            <div>
+              <div class="fw-semibold fs-5" id="sumIngresosHoy">—</div>
+            </div>
+            <span class="chip">Hoy</span>
+          </div>
+
+          <div class="d-flex justify-content-between mt-2">
+            <span class="muted">Tickets</span>
+            <span class="fw-semibold" id="sumTicketsHoy">—</span>
+          </div>
+          <div class="d-flex justify-content-between mt-1">
+            <span class="muted">Artículos</span>
+            <span class="fw-semibold" id="sumArticulosHoy">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VENTAS DE HOY -->
+      <div class="sales-section">
+        <div class="sales-section-title">
+          <span class="fw-semibold">Ventas de hoy</span>
+        </div>
+        <div id="salesTodayList" class="list small" style="max-height:260px;"></div>
+      </div>
+
+      <!-- HISTORIAL -->
+      <div class="sales-section">
+        <div class="sales-section-title">
+          <span class="fw-semibold">Historial completo</span>
+        </div>
+        <div id="salesAllList" class="list small" style="max-height:340px;"></div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+
+
+  </main>
+
+  <!-- PRODUCT MODAL -->
+  <div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content modal-surface">
+        <div class="modal-header border-0">
+          <h5 class="modal-title" id="productModalTitle">Producto</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+        </div>
+
+        <div class="modal-body">
+          <div id="productModalError" class="alert alert-danger py-2 d-none"></div>
+
+          <div class="mb-2">
+            <label class="form-label small muted">Nombre *</label>
+            <input id="pmName" class="form-control" placeholder="Ej: Coca 600ml" />
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small muted">SKU</label>
+
+            <div class="d-flex gap-2 align-items-center">
+              <input id="pmSku" class="form-control" placeholder="Se genera automático" disabled />
+
+              <div class="d-flex align-items-center gap-2 px-2"
+                style="border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.06);">
+                <div class="form-check form-switch m-0">
+                  <input class="form-check-input" type="checkbox" id="pmSkuManual">
+                </div>
+                <span class="small muted" style="white-space:nowrap;">Manual</span>
+              </div>
+
+              <button class="btn btn-soft btn-sm" type="button" id="btnGenSku" title="Generar SKU">↻</button>
+            </div>
+
+            <div class="form-text muted">
+              Automático por defecto. Activa <b>Manual</b> si quieres escribirlo.
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small muted">Categoría (opcional)</label>
+            <input id="pmCategory" class="form-control" placeholder="Ej: Bebidas" />
+          </div>
+
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small muted">Precio *</label>
+              <input id="pmPrice" class="form-control" type="number" step="0.01" min="0" placeholder="0.00" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small muted">Stock *</label>
+              <input id="pmStock" class="form-control" type="number" step="1" min="0" placeholder="0" />
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small muted">Unidad (opcional)</label>
+            <input id="pmUnit" class="form-control" placeholder="Ej: pieza, caja, kg" />
+          </div>
+
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="pmTrackStock" checked>
+            <label class="form-check-label muted" for="pmTrackStock">Descontar stock en cada venta</label>
+          </div>
+        </div>
+
+        <div class="modal-footer border-0 d-flex gap-2">
+          <button class="btn btn-soft" data-bs-dismiss="modal" type="button">Cancelar</button>
+          <button id="btnSaveProductModal" class="btn btn-primary" type="button">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGOUT MODAL (LIMPIO, SIN PRODUCTMODAL DUPLICADO) -->
+  <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-dark">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Cerrar sesión</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="muted mb-0">
+            ¿Seguro que deseas cerrar sesión?<br>
+            Tendrás que volver a iniciar sesión para entrar.
+          </p>
+        </div>
+
+        <div class="modal-footer border-0">
+          <button class="btn btn-soft" data-bs-dismiss="modal" type="button">Cancelar</button>
+          <button id="confirmLogout" class="btn btn-danger" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="JavaScript/topnav.js"></script>
+  <script src="JavaScript/POS.js"></script>
+  <script src="JavaScript/theme.js"></script>
+</body>
+</html>

@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mi POS — Dashboard</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="Estilos/dashboard.css">
+</head>
+
+<body class="dash-body">
+
+  <header class="topfb cardx d-none d-lg-block">
+    <div class="topfb-inner">
+
+      <!-- Left: logo + search -->
+      <div class="topfb-left">
+        <div class="topfb-brand">
+          <div class="topfb-badge">M</div>
+          <div class="d-none d-xl-block">
+            <div class="small muted" id="bizMiniLabel">—</div>
+          </div>
+        </div>
+
+        <div class="topfb-search">
+          <i class="bi bi-search"></i>
+          <input id="dashSearchInput" type="text" placeholder="Buscar en tu POS..." />
+        </div>
+      </div>
+
+    <nav class="topfb-center" aria-label="Navegación">
+      <a class="topfb-tab nav-item active" href="Dashboard.html" data-screen="home" title="Inicio">
+        <i class="bi bi-house-door"></i>
+      </a>
+
+      <a class="topfb-tab nav-item" href="Pos.html" data-screen="pos" title="Caja (POS)">
+        <i class="bi bi-credit-card-2-front"></i>
+      </a>
+
+      <!-- Inventario -->
+      <a class="topfb-tab nav-item" href="Inventario.html" data-screen="inventory" title="Inventario">
+        <i class="bi bi-box-seam"></i>
+      </a>
+
+      <!-- Reportes -->
+      <a class="topfb-tab nav-item" href="Reportes.html" data-screen="reports" title="Reportes">
+        <i class="bi bi-bar-chart"></i>
+      </a>
+
+      <!-- Equipo -->
+      <a class="topfb-tab nav-item" href="Equipo.html" data-screen="team" title="Equipo">
+        <i class="bi bi-people"></i>
+      </a>
+    </nav>
+
+
+      <!-- Right: actions -->
+      <div class="topfb-right">
+        <button class="topfb-iconbtn" id="btnOpenPost" type="button" title="Crear">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+
+      <button class="topfb-iconbtn" id="btnTheme" type="button" title="Tema">
+        <i class="bi bi-moon-stars"></i>
+      </button>
+
+
+
+        <button class="topfb-iconbtn" type="button" title="Perfil">
+          <i class="bi bi-person"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ===== MAIN (pantalla completa en PC) ===== -->
+  <main class="dashwrap dashwrap--wide">
+    <div class="layout3 layout3--fb">
+
+      <!-- ===== LEFT COLUMN (configuración, etc.) ===== -->
+      <aside class="leftcol d-none d-lg-block">
+        <div class="glass cardpad stickycol">
+
+          <div class="left-profile">
+            <div class="avatarbig" id="bizAvatarLeft">M</div>
+            <div class="lh-sm">
+              <div class="fw-semibold" id="bizNameLeft">—</div>
+              <div class="small muted" id="bizHandleLeft">—</div>
+            </div>
+          </div>
+
+          <div class="left-actions mt-3">
+            <button class="btn btn-soft w-100" type="button">
+              <i class="bi bi-gear me-2"></i> Configuración
+            </button>
+
+            <a class="btn btn-soft w-100" href="Perfil.html">
+              <i class="bi bi-person me-2"></i> Perfil
+            </a>
+
+            <button id="btnLogoutDash" class="btn btn-danger-soft w-100" type="button">
+              <i class="bi bi-box-arrow-right me-2"></i> Cerrar sesión
+            </button>
+          </div>
+
+          <div class="mt-3">
+            <div class="small muted mb-1">Progreso</div>
+            <div class="progress glass-progress" style="height:10px;">
+              <div class="progress-bar" role="progressbar" style="width: 35%;"></div>
+            </div>
+            <div class="small muted mt-2">35% — Configura productos, equipo y empieza a publicar.</div>
+          </div>
+
+        </div>
+      </aside>
+
+      <!-- ===== CENTER COLUMN (dashboard) ===== -->
+      <section class="centercol">
+
+        <!-- Composer (sin composer-actions, como pediste) -->
+        <div class="glass cardpad composer">
+          <div class="composer-top">
+            <span class="avatarmini" id="bizAvatarComposer"></span>
+            <button class="composer-input" type="button" id="btnOpenPostMirror">
+              ¿Qué quieres hacer hoy?
+            </button>
+          </div>
+        </div>
+
+        <!-- RESUMEN (TU MISMO BLOQUE, SOLO BIEN ACOMODADO) -->
+        <div class="glass cardpad mt-4">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div>
+              <div class="sectiontitle">Resumen</div>
+              <div class="muted tiny">Vista rápida del negocio (ventas, tickets, inventario, alertas).</div>
+            </div>
+
+            <!-- OJO: tu JS ya no usa btnBreakdown, tú usas collapse con bootstrap y está bien -->
+            <button class="btn btn-soft btn-sm" type="button"
+              data-bs-toggle="collapse" data-bs-target="#resumenDesglose">
+              <i class="bi bi-list-ul me-1"></i> Ver desglose
+            </button>
+          </div>
+
+          <div class="kpis mt-3">
+            <div class="kpibox">
+              <div class="kpi-head">
+                <span class="kpi-label muted tiny">Ingresos</span>
+                <i class="bi bi-currency-dollar kpi-ico"></i>
+              </div>
+              <div class="kpi-value" id="kpiIngresos">—</div>
+              <div class="kpi-sub muted tiny">Hoy</div>
+            </div>
+
+            <div class="kpibox">
+              <div class="kpi-head">
+                <span class="kpi-label muted tiny">Tickets</span>
+                <i class="bi bi-receipt kpi-ico"></i>
+              </div>
+              <div class="kpi-value" id="kpiTickets">—</div>
+              <div class="kpi-sub muted tiny">Hoy</div>
+            </div>
+
+            <div class="kpibox">
+              <div class="kpi-head">
+                <span class="kpi-label muted tiny">Inventario</span>
+                <i class="bi bi-box-seam kpi-ico"></i>
+              </div>
+              <div class="kpi-value" id="kpiInventario">—</div>
+              <div class="kpi-sub muted tiny">Productos</div>
+            </div>
+
+            <div class="kpibox">
+              <div class="kpi-head">
+                <span class="kpi-label muted tiny">Alertas</span>
+                <i class="bi bi-exclamation-triangle kpi-ico"></i>
+              </div>
+              <div class="kpi-value" id="kpiAlertas">—</div>
+              <div class="kpi-sub muted tiny">Pendientes</div>
+            </div>
+          </div>
+
+          <div class="collapse mt-3" id="resumenDesglose">
+            <div class="glass innerpad">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="minirow">
+                    <div class="muted tiny">Ventas hoy</div>
+                    <div class="fw-semibold" id="sumVentasHoy">—</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="minirow">
+                    <div class="muted tiny">Productos en inventario</div>
+                    <div class="fw-semibold" id="sumProductos">—</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="minirow">
+                    <div class="muted tiny">Stock bajo</div>
+                    <div class="fw-semibold" id="sumStockBajo">—</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="minirow">
+                    <div class="muted tiny">Empleados conectados</div>
+                    <div class="fw-semibold" id="sumConectados">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+      </section>
+
+      <!-- ===== RIGHT COLUMN (empresa + equipo) ===== -->
+      <aside class="rightcol d-none d-lg-block">
+
+        <div class="cardx p-3 mb-3">
+          <div class="d-flex align-items-center gap-3">
+            <img id="bizLogoImg" class="biz-logo d-none" alt="logo">
+            <div class="biz-logo-fallback" id="bizLogoFallback">🏪</div>
+
+            <div class="flex-grow-1">
+              <div class="fw-semibold" id="bizNameRight">—</div>
+              <div class="small muted" id="bizCategoryRight">—</div>
+              <div class="small muted" id="bizHandleRight">—</div>
+            </div>
+
+            <button class="btn btn-soft btn-sm d-none" id="btnEditBiz" type="button">Cambiar</button>
+          </div>
+        </div>
+
+        <div class="cardx p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-semibold">Equipo conectado</div>
+            <a class="btn btn-link btn-sm link-light" style="text-decoration:none;" href="Equipo.html">Ver todo</a>
+          </div>
+
+          <div class="muted small mb-2">
+            Usuarios conectados a tu empresa (demo por ahora).
+          </div>
+
+          <div class="suggestions" id="teamList"></div>
+        </div>
+
+      </aside>
+
+    </div>
+  </main>
+
+  <!-- ===== MODAL: Crear Post ===== -->
+  <div class="modal fade" id="postModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content modal-dark">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Crear publicación</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body">
+          <div id="postErr" class="alert alert-danger d-none mb-3"></div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label muted tiny">Tipo</label>
+              <select id="postType" class="form-select form-glass">
+                <option value="promo">Promo</option>
+                <option value="producto">Producto</option>
+                <option value="aviso">Aviso</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label muted tiny">Media (foto o video)</label>
+              <input id="postMedia" type="file" class="form-control form-glass" accept="image/*,video/*">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label muted tiny">Descripción</label>
+              <textarea id="postCaption" class="form-control form-glass" rows="3"
+                placeholder="¿Qué vas a publicar hoy?"></textarea>
+              <div class="muted tiny mt-2">Máximo 12MB (MVP).</div>
+            </div>
+
+            <div class="col-12">
+              <div id="postPreviewWrap" class="d-none">
+                <div class="muted tiny mb-2">Vista previa</div>
+                <img id="postPreviewImg" class="w-100 d-none"
+                  style="border-radius:16px; max-height:360px; object-fit:cover;" alt="preview">
+                <video id="postPreviewVideo" class="w-100 d-none"
+                  style="border-radius:16px; max-height:360px; object-fit:cover;" controls></video>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer border-0">
+          <button class="btn btn-soft" data-bs-dismiss="modal" type="button">Cancelar</button>
+          <button class="btn btn-primary" id="btnPublishPost" type="button">Publicar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: Logout (tu JS lo usa tal cual) ===== -->
+  <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-dark">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Cerrar sesión</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="muted mb-0">¿Seguro que deseas cerrar sesión?</p>
+        </div>
+
+        <div class="modal-footer border-0">
+          <button class="btn btn-soft" data-bs-dismiss="modal" type="button">Cancelar</button>
+          <button id="confirmLogout" class="btn btn-danger" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="JavaScript/dashboard.js"></script>
+  <script src="JavaScript/theme.js"></script>
+  <script src="JavaScript/topnav.js"></script>
+  <script src="JavaScript/Topfb.js"></script>
+
+</body>
+</html>
