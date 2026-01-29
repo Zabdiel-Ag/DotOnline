@@ -1,60 +1,74 @@
+// JavaScript/theme.js
 (() => {
-  const THEME_KEY = "appTheme"; // "dark" | "light"
-  const LIGHT_CLASS = "theme-light";
+  const THEME_KEY = "appTheme";
+  const BTN_ID = "btnTheme";
 
-  function setThemeClass(isLight) {
-    // Ponemos la clase en html Y body para que cualquier CSS lo detecte
-    document.documentElement.classList.toggle(LIGHT_CLASS, isLight);
-    document.body?.classList.toggle(LIGHT_CLASS, isLight);
-  }
+  const normalizeTheme = (t) => (t === "light" ? "light" : "dark");
 
-  function updateThemeIcon(isLight) {
-    const btn = document.getElementById("btnTheme");
+  const getSavedTheme = () => {
+    try {
+      const t = localStorage.getItem(THEME_KEY);
+      return t === "light" || t === "dark" ? t : "dark";
+    } catch {
+      return "dark";
+    }
+  };
+
+  const setSavedTheme = (theme) => {
+    try {
+      localStorage.setItem(THEME_KEY, normalizeTheme(theme));
+    } catch {}
+  };
+
+  const updateThemeBtn = (theme) => {
+    const btn = document.getElementById(BTN_ID);
     if (!btn) return;
 
+    const isLight = theme === "light";
     btn.innerHTML = isLight
       ? `<i class="bi bi-sun"></i>`
       : `<i class="bi bi-moon-stars"></i>`;
 
     btn.setAttribute("aria-label", isLight ? "Tema claro" : "Tema oscuro");
     btn.title = isLight ? "Tema claro" : "Tema oscuro";
-  }
+  };
 
-  function applyTheme(theme) {
-    const isLight = theme === "light";
-    setThemeClass(isLight);
-    updateThemeIcon(isLight);
+  const applyTheme = (theme) => {
+    const t = normalizeTheme(theme);
+    const root = document.documentElement;
 
-    // (Opcional) ayuda a componentes que dependan del dataset
-    document.documentElement.dataset.theme = isLight ? "light" : "dark";
-  }
+    // Bootstrap theme
+    root.setAttribute("data-bs-theme", t);
 
-  function getSavedTheme() {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved === "light" || saved === "dark") return saved;
-    return "dark";
-  }
+    // opcional para tu CSS custom
+    root.dataset.theme = t;
 
-  function toggleTheme() {
-    const isLightNow = document.documentElement.classList.contains(LIGHT_CLASS);
-    const next = isLightNow ? "dark" : "light";
-    localStorage.setItem(THEME_KEY, next);
+    // opcional si usas .theme-light
+    if (document.body) document.body.classList.toggle("theme-light", t === "light");
+
+    updateThemeBtn(t);
+  };
+
+  const toggleTheme = () => {
+    const next = getSavedTheme() === "light" ? "dark" : "light";
+    setSavedTheme(next);
     applyTheme(next);
-  }
+  };
 
-  document.addEventListener("DOMContentLoaded", () => {
-    // 1) aplica al cargar
-    applyTheme(getSavedTheme());
+  applyTheme(getSavedTheme());
 
-    // 2) click del botón
-    const btn = document.getElementById("btnTheme");
-    if (btn) btn.addEventListener("click", toggleTheme);
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(`#${BTN_ID}`);
+    if (!btn) return;
+    e.preventDefault();
+    toggleTheme();
   });
 
-  // 3) sincroniza tema entre pestañas / páginas abiertas
   window.addEventListener("storage", (e) => {
-    if (e.key === THEME_KEY) {
-      applyTheme(getSavedTheme());
-    }
+    if (e.key === THEME_KEY) applyTheme(getSavedTheme());
   });
+
+  window.addEventListener("pageshow", () => applyTheme(getSavedTheme()));
+
+  document.addEventListener("DOMContentLoaded", () => applyTheme(getSavedTheme()), { once: true });
 })();

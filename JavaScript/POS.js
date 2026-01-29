@@ -1,9 +1,4 @@
-/* =========================
-   POS.js (LIMPIO / SIN DUPLICADOS)
-   Keys reales:
-   PRODUCTS_KEY = "pos_products_v1"
-   SALES_KEY    = "pos_sales_v1"
-   ========================= */
+import { supabase } from "./supabaseClient.js";
 
 const USERS_KEY = "pos_users";
 const SESSION_KEY = "pos_session";
@@ -11,7 +6,36 @@ const BUSINESSES_KEY = "pos_businesses";
 const PRODUCTS_KEY = "pos_products_v1";
 const SALES_KEY = "pos_sales_v1";
 
-// ---------- Storage ----------
+/* =========================
+   THEME BOOT (NO FLASH)
+========================= */
+const THEME_KEY = "dash_theme";
+(function bootThemeNoFlash() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    const theme = saved === "light" ? "light" : "dark";
+    const root = document.documentElement;
+
+    root.style.visibility = "hidden";
+    root.setAttribute("data-bs-theme", theme);
+
+    if (document.body) {
+      document.body.classList.toggle("theme-light", theme === "light");
+    } else {
+      document.addEventListener(
+        "DOMContentLoaded",
+        () => document.body?.classList.toggle("theme-light", theme === "light"),
+        { once: true }
+      );
+    }
+
+    requestAnimationFrame(() => (root.style.visibility = ""));
+  } catch {
+    document.documentElement.style.visibility = "";
+  }
+})();
+
+/* ---------- Storage local ---------- */
 function jget(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 }
@@ -20,26 +44,114 @@ function jset(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 function getSession() { return jget(SESSION_KEY, null); }
 function clearSession() { localStorage.removeItem(SESSION_KEY); }
 function getUsers() { return jget(USERS_KEY, []); }
-function getBusinesses() { return jget(BUSINESSES_KEY, []); }
-
-function getBusinessByOwner(userId) {
-  return getBusinesses().find(b => b.ownerUserId === userId) || null;
+function getBusinessesLocal() { return jget(BUSINESSES_KEY, []); }
+function getBusinessByOwnerLocal(userId) {
+  return getBusinessesLocal().find(b => b.ownerUserId === userId) || null;
 }
 
-function requireAuth() {
+/* =========================
+   SUPABASE: BUSINESS + LOGO
+========================= */
+async function getBusinessByOwnerSB(ownerId) {
+  const { data, error } = await supabase
+    .from("businesses")
+    .select("id, name, handle, category, owner_id, logo_url, currency, timezone, created_at")
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+function getPublicLogoUrlFromBiz(biz) {
+  return biz?.logo_url || "";
+}
+
+/* =========================
+   Theme Button
+========================= */
+function setupThemeBtn() {
+  const btn = document.getElementById("btnTheme");
+  if (!btn) return;
+
+  const root = document.documentElement;
+
+  const paint = (theme) => {
+    const isLight = theme === "light";
+    btn.innerHTML = isLight
+      ? '<i class="bi bi-moon-stars"></i>'
+      : '<i class="bi bi-sun"></i>';
+  };
+
+  const apply = (theme) => {
+    const t = theme === "light" ? "light" : "dark";
+    root.setAttribute("data-bs-theme", t);
+    document.body.classList.toggle("theme-light", t === "light");
+    localStorage.setItem(THEME_KEY, t);
+    paint(t);
+  };
+
+  paint(localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark");
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const now = localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+    apply(now === "light" ? "dark" : "light");
+  });
+}
+
+/* =========================
+   Auth (Supabase primero)
+========================= */
+async function requireAuthOrRedirect() {
+  // 1) Supabase
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    const sbUser = data?.user;
+
+    if (sbUser && !error) {
+      let biz = null;
+      try { biz = await getBusinessByOwnerSB(sbUser.id); }
+      catch (e) { console.error("getBusinessByOwnerSB error:", e); biz = null; }
+
+      return {
+        user: {
+          id: sbUser.id,
+          email: sbUser.email,
+          name:
+            sbUser.user_metadata?.full_name ||
+            sbUser.user_metadata?.name ||
+            sbUser.email ||
+            "Usuario",
+        },
+        biz,
+        auth: "supabase",
+      };
+    }
+  } catch (e) {
+    console.error("supabase.auth.getUser error:", e);
+  }
+
+  // 2) Fallback localStorage
   const session = getSession();
-  if (!session?.userId) { window.location.href = "Index.html"; return null; }
+  if (!session?.userId) {
+    window.location.href = "Index.html";
+    return null;
+  }
 
   const user = getUsers().find(u => u.id === session.userId);
-  if (!user) { clearSession(); window.location.href = "Index.html"; return null; }
+  if (!user) {
+    clearSession();
+    window.location.href = "Index.html";
+    return null;
+  }
 
-  const biz = getBusinessByOwner(session.userId);
-  if (!biz) { window.location.href = "Index.html"; return null; }
-
-  return { user, biz };
+  const biz = getBusinessByOwnerLocal(session.userId) || null;
+  return { user, biz, auth: "local" };
 }
 
-// Backward compatible (bizId/businessId)
+/* ---------- Backward compatible (bizId/businessId) ---------- */
 function normalizeProduct(p) {
   if (!p) return p;
   if (!p.bizId && p.businessId) p.bizId = p.businessId;
@@ -51,17 +163,133 @@ function normalizeSale(s) {
   return s;
 }
 
-// Products
+// Local products
 function getAllProducts() { return jget(PRODUCTS_KEY, []).map(normalizeProduct); }
-function saveAllProducts(all) { jset(PRODUCTS_KEY, all); }
 function getProductsByBiz(bizId) { return getAllProducts().filter(p => p.bizId === bizId); }
 
-// Sales
+// Sales local (fallback)
 function getAllSales() { return jget(SALES_KEY, []).map(normalizeSale); }
-function saveAllSales(all) { jset(SALES_KEY, all); }
 function getSalesByBiz(bizId) { return getAllSales().filter(s => s.bizId === bizId); }
 
-// ---------- Utils ----------
+/* =========================
+   SUPABASE PRODUCTS
+========================= */
+function mapRowToLocalLikeProduct(row) {
+  return {
+    id: row.id,
+    bizId: row.business_id,
+    name: row.name || "",
+    sku: row.sku || "",
+    barcode: row.barcode || "",
+    unit: row.unit || "pz",
+    price: Number(row.price || 0),
+    stock: Number(row.stock || 0),
+    trackStock: true,
+    image_url: row.image_url || null,
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+async function fetchProductsSB(bizId) {
+  const { data, error } = await supabase
+    .from("products")
+    .select("id,business_id,sku,barcode,name,unit,price,stock,image_url,created_at,updated_at,is_active")
+    .eq("business_id", bizId)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return (data || []).map(mapRowToLocalLikeProduct);
+}
+
+/* =========================
+   TIMEZONE: rangos "hoy/ayer"
+========================= */
+function getTZParts(date, timeZone) {
+  const dtf = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(date);
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  return map;
+}
+
+function dayRangeUtcISO(timeZone, daysAgo = 0) {
+  const now = new Date();
+
+  const tzNowParts = getTZParts(now, timeZone);
+  const y = Number(tzNowParts.year);
+  const m = Number(tzNowParts.month);
+  const d = Number(tzNowParts.day);
+
+  const baseUTC = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+  baseUTC.setUTCDate(baseUTC.getUTCDate() - daysAgo);
+
+  const baseParts = getTZParts(baseUTC, timeZone);
+  const asIfUTC = new Date(Date.UTC(
+    Number(baseParts.year),
+    Number(baseParts.month) - 1,
+    Number(baseParts.day),
+    Number(baseParts.hour),
+    Number(baseParts.minute),
+    Number(baseParts.second)
+  ));
+
+  const offsetMs = baseUTC.getTime() - asIfUTC.getTime();
+  const start = new Date(baseUTC.getTime() + offsetMs);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+/* =========================
+   SUPABASE SALES (sales + sale_items)
+========================= */
+async function fetchSalesSBByRange(bizId, startISO, endISO) {
+  const { data, error } = await supabase
+    .from("sales")
+    .select(`
+      id,
+      business_id,
+      created_at,
+      created_by,
+      status,
+      payment_method,
+      subtotal,
+      discount,
+      tax,
+      total,
+      note,
+      sale_items (
+        id,
+        product_id,
+        name,
+        qty,
+        unit_price,
+        line_total
+      )
+    `)
+    .eq("business_id", bizId)
+    .gte("created_at", startISO)
+    .lt("created_at", endISO)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/* =========================
+   Utils
+========================= */
 function money(n) {
   const x = Number(n || 0);
   return x.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
@@ -69,7 +297,8 @@ function money(n) {
 function escapeHtml(s) {
   return String(s ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;").replaceAll('"', "&quot;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
 function toMs(value) {
@@ -93,29 +322,30 @@ function relativeDayLabelFromValue(value) {
   if (diffDays === -1) return "ayer";
   if (diffDays === -2) return "antier";
   const rtf = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
-  return rtf.format(diffDays, "day"); // "hace 7 días"
+  return rtf.format(diffDays, "day");
 }
-function isToday(value) {
-  const ms = toMs(value);
-  if (!ms) return false;
-  const d = new Date(ms);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+function shortId(uuid) {
+  try { return String(uuid).split("-")[0].toUpperCase(); } catch { return String(uuid || ""); }
 }
-function setText(id, txt) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = txt;
+function bsModal(el) {
+  if (!el) return null;
+  return bootstrap.Modal.getOrCreateInstance(el);
 }
 
-// ---------- State ----------
-let ctx = null; // {user,biz}
+/* =========================
+   STATE
+========================= */
+let ctx = null;
 let products = [];
 let sales = [];
-let cart = []; // {productId,name,price,qty}
+let cart = [];
 
-// ---------- DOM ----------
-const bizLabel = document.getElementById("bizLabel");
-const todayTotalChip = document.getElementById("todayTotalChip");
+// checkout flow state
+let pendingCheckout = null; // { pm, ref }
+
+/* ---------- DOM ---------- */
+const brandLogoImg = document.getElementById("brandLogoImg");
+const brandNameText = document.getElementById("brandNameText");
 
 const productSearch = document.getElementById("productSearch");
 const productList = document.getElementById("productList");
@@ -127,52 +357,37 @@ const cartList = document.getElementById("cartList");
 const subtotalLabel = document.getElementById("subtotalLabel");
 const totalLabel = document.getElementById("totalLabel");
 const discountInput = document.getElementById("discountInput");
+
 const paymentMethod = document.getElementById("paymentMethod");
 const posMsg = document.getElementById("posMsg");
 
 const btnClearCart = document.getElementById("btnClearCart");
 const btnCheckout = document.getElementById("btnCheckout");
-
-// Product modal
-const productModalEl = document.getElementById("productModal");
-const productModal = (productModalEl && window.bootstrap?.Modal)
-  ? bootstrap.Modal.getOrCreateInstance(productModalEl)
-  : null;
-
-const btnOpenProductModal = document.getElementById("btnOpenProductModal");
-const btnSaveProductModal = document.getElementById("btnSaveProductModal");
-const productModalTitle = document.getElementById("productModalTitle");
-const productModalError = document.getElementById("productModalError");
-
-const pmName = document.getElementById("pmName");
-const pmSku = document.getElementById("pmSku");
-const pmPrice = document.getElementById("pmPrice");
-const pmStock = document.getElementById("pmStock");
-const pmUnit = document.getElementById("pmUnit");
-const pmTrackStock = document.getElementById("pmTrackStock");
-
-const pmSkuManual = document.getElementById("pmSkuManual");
-const btnGenSku = document.getElementById("btnGenSku");
-
-// Logout modal
-const btnLogoutDash = document.getElementById("btnLogoutDash");
-const logoutModalEl = document.getElementById("logoutModal");
 const confirmLogout = document.getElementById("confirmLogout");
-const logoutModal = (logoutModalEl && window.bootstrap?.Modal)
-  ? bootstrap.Modal.getOrCreateInstance(logoutModalEl)
-  : null;
 
-// ---------- UI helpers ----------
-function showError(el, msg) {
-  if (!el) return;
-  el.textContent = msg;
-  el.classList.remove("d-none");
-}
-function hideError(el) {
-  if (!el) return;
-  el.textContent = "";
-  el.classList.add("d-none");
-}
+/* --- Modal: referencia --- */
+const paymentRefModalEl = document.getElementById("paymentRefModal");
+const paymentRefModalInput = document.getElementById("paymentRefModalInput");
+const btnRefNext = document.getElementById("btnRefNext");
+const paymentRefHelp = document.getElementById("paymentRefHelp");
+
+/* --- Checkout choice modal --- */
+const checkoutChoiceModalEl = document.getElementById("checkoutChoiceModal");
+const btnPayNoTicket = document.getElementById("btnPayNoTicket");
+const btnPayWithTicket = document.getElementById("btnPayWithTicket");
+
+/* --- Receipt modal --- */
+const receiptModalEl = document.getElementById("receiptModal");
+const rmBizName = document.getElementById("rmBizName");
+const rmDate = document.getElementById("rmDate");
+const rmFolio = document.getElementById("rmFolio");
+const rmTotal = document.getElementById("rmTotal");
+const rmQR = document.getElementById("rmQR");
+const rmOpenLink = document.getElementById("rmOpenLink");
+const rmCopyLink = document.getElementById("rmCopyLink");
+const rmThanks = document.getElementById("rmThanks");
+
+/* ---------- UI helpers ---------- */
 function setPosMsg(msg, ok = false) {
   if (!posMsg) return;
   posMsg.textContent = msg;
@@ -188,11 +403,82 @@ function clearPosMsg() {
   posMsg.classList.add("alert-danger");
 }
 
-// ---------- Render ----------
-function renderBiz() {
-  if (bizLabel) bizLabel.textContent = `${ctx.biz.name}  •  @${ctx.biz.handle}`;
+/* =========================
+   Cobrar habilitado/inhabilitado
+========================= */
+function updateCheckoutEnabled() {
+  if (!btnCheckout) return;
+  const disabled = cart.length === 0;
+  btnCheckout.disabled = disabled;
+  btnCheckout.classList.toggle("disabled", disabled);
 }
 
+/* =========================
+   Render Biz + Logo
+========================= */
+function renderBiz() {
+  const name = ctx?.biz?.name || "Mi POS";
+  if (brandNameText) brandNameText.textContent = name;
+
+  const logoUrl = getPublicLogoUrlFromBiz(ctx?.biz);
+  if (brandLogoImg) {
+    if (logoUrl) {
+      brandLogoImg.src = logoUrl;
+      brandLogoImg.classList.remove("d-none");
+    } else {
+      brandLogoImg.classList.add("d-none");
+    }
+  }
+}
+
+/* =========================
+   LOAD PRODUCTS
+========================= */
+async function loadProducts() {
+  if (!ctx?.biz?.id) { products = []; return; }
+
+  if (ctx.auth === "supabase") {
+    try {
+      products = await fetchProductsSB(ctx.biz.id);
+      return;
+    } catch (e) {
+      console.error("fetchProductsSB error:", e);
+      products = [];
+      setPosMsg(`Productos SB error: ${e?.message || e}`, false);
+      return;
+    }
+  }
+
+  products = getProductsByBiz(ctx.biz.id);
+}
+
+/* =========================
+   LOAD SALES (HOY + AYER)
+========================= */
+async function loadSalesSB() {
+  if (!ctx?.biz?.id) { sales = []; return; }
+
+  const tz = ctx.biz.timezone || "America/Mexico_City";
+  try {
+    const today = dayRangeUtcISO(tz, 0);
+    const yesterday = dayRangeUtcISO(tz, 1);
+
+    const [sToday, sYest] = await Promise.all([
+      fetchSalesSBByRange(ctx.biz.id, today.startISO, today.endISO),
+      fetchSalesSBByRange(ctx.biz.id, yesterday.startISO, yesterday.endISO),
+    ]);
+
+    sales = [...sToday, ...sYest];
+  } catch (e) {
+    console.error("loadSalesSB error:", e);
+    setPosMsg(`Ventas SB error: ${e?.message || e}`, false);
+    sales = [];
+  }
+}
+
+/* =========================
+   Render products
+========================= */
 function renderProducts(filterText = "") {
   const q = filterText.trim().toLowerCase();
   const list = products
@@ -203,27 +489,83 @@ function renderProducts(filterText = "") {
   productList.innerHTML = "";
 
   if (list.length === 0) {
-    productList.innerHTML = `<div class="muted small">No hay productos todavía (crea en Inventario y aquí aparecerán).</div>`;
+    productList.innerHTML = `<div class="muted small">No hay productos todavía.</div>`;
     return;
   }
 
   for (const p of list) {
+    const img = p.image_url ? `
+      <img src="${escapeHtml(p.image_url)}"
+           alt="img"
+           loading="lazy"
+           style="width:44px;height:44px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.12);" />
+    ` : `
+      <div style="width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+                  display:grid;place-items:center;color:rgba(233,238,245,.65);font-size:12px;">
+        <i class="bi bi-image"></i>
+      </div>
+    `;
+
     const el = document.createElement("div");
     el.className = "item";
     el.innerHTML = `
-      <div>
-        <div class="item-title">${escapeHtml(p.name)}</div>
-        <div class="item-sub">
-          ${money(p.price)} • Stock: ${Number(p.stock || 0)} ${p.sku ? "• " + escapeHtml(p.sku) : ""}
+      <div class="d-flex align-items-center gap-2" style="min-width:0;">
+        ${img}
+        <div style="min-width:0;">
+          <div class="item-title text-truncate">${escapeHtml(p.name)}</div>
+          <div class="item-sub">
+            ${money(p.price)} • Stock: ${Number(p.stock || 0)} ${p.sku ? "• " + escapeHtml(p.sku) : ""}
+          </div>
         </div>
       </div>
       <div class="d-flex align-items-center gap-2">
         <button class="btn btn-soft btn-sm" data-act="add" data-id="${p.id}">+ Carrito</button>
-        <button class="btn btn-outline-danger btn-sm" data-act="del" data-id="${p.id}">X</button>
       </div>
     `;
     productList.appendChild(el);
   }
+}
+
+/* =========================
+   Render sales (simple)
+========================= */
+function renderSales() {
+  if (!salesList) return;
+
+  salesList.innerHTML = "";
+  if (!sales.length) {
+    salesList.innerHTML = `<div class="muted small">Sin ventas (hoy/ayer).</div>`;
+    return;
+  }
+
+  for (const s of sales) {
+    const label = relativeDayLabelFromValue(s.created_at);
+    const itemsCount = (s.sale_items || []).length;
+    const note = s.note ? ` • ${escapeHtml(String(s.note))}` : "";
+
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `
+      <div style="min-width:0;">
+        <div class="item-title text-truncate">${escapeHtml(label)} • ${new Date(s.created_at).toLocaleString("es-MX")}</div>
+        <div class="item-sub">${escapeHtml(String(s.payment_method || "cash"))}${note} • ${itemsCount} items</div>
+      </div>
+      <div class="fw-semibold">${money(s.total)}</div>
+    `;
+    salesList.appendChild(el);
+  }
+}
+
+/* =========================
+   Cart + Totals
+========================= */
+function updateTotals() {
+  const subtotal = cart.reduce((acc, it) => acc + (Number(it.price) * Number(it.qty)), 0);
+  const discount = Math.max(0, Number(discountInput?.value || 0));
+  const total = Math.max(0, subtotal - discount);
+
+  if (subtotalLabel) subtotalLabel.textContent = money(subtotal);
+  if (totalLabel) totalLabel.textContent = money(total);
 }
 
 function renderCart() {
@@ -231,8 +573,9 @@ function renderCart() {
   cartList.innerHTML = "";
 
   if (cart.length === 0) {
-    cartList.innerHTML = `<div class="muted small">Carrito vacío. Busca un producto y presiona Enter.</div>`;
+    cartList.innerHTML = `<div class="muted small">Carrito vacío. Busca y presiona Enter.</div>`;
     updateTotals();
+    updateCheckoutEnabled();
     return;
   }
 
@@ -255,291 +598,20 @@ function renderCart() {
   }
 
   updateTotals();
+  updateCheckoutEnabled();
 }
 
-function renderTodayTotal() {
-  if (!todayTotalChip) return;
-  const totalToday = sales
-    .filter(s => isToday(s.createdAt))
-    .reduce((acc, s) => acc + Number(s.total || 0), 0);
-
-  todayTotalChip.textContent = `${money(totalToday)} hoy`;
-}
-
-function saleItemsPreview(items = []) {
-  const max = 2;
-  const parts = items.slice(0, max).map(it => `${it.name || "Producto"} x${Number(it.qty || 1)}`);
-  const rest = items.length - max;
-  return parts.join(", ") + (rest > 0 ? ` +${rest} más` : "");
-}
-
-/* ==========
-   Ventas recientes (sin bug)
-   - chip: hoy/ayer/antier/hace X días ✅
-   - orden por fecha real ✅
-   - desglose opcional ✅ (si existen ids)
-   ========== */
-function renderSales() {
-  if (!salesList) return;
-
-  const sorted = [...sales].sort((a, b) => (toMs(b.createdAt) || 0) - (toMs(a.createdAt) || 0));
-  const recent = sorted.slice(0, 8);
-
-  if (recent.length === 0) {
-    salesList.innerHTML = `<div class="muted">Aún no hay ventas.</div>`;
-    renderTodayTotal();
-    renderSalesBreakdown(sorted);
-    return;
-  }
-
-  salesList.innerHTML = recent.map(s => {
-    const whenMs = toMs(s.createdAt);
-    const when = whenMs ? new Date(whenMs) : new Date();
-    const hh = String(when.getHours()).padStart(2, "0");
-    const mm = String(when.getMinutes()).padStart(2, "0");
-
-    const items = Array.isArray(s.items) ? s.items : [];
-    const itemsCount = items.reduce((a, x) => a + Number(x.qty || 0), 0);
-
-    const collapseId = `sale_${String(s.id || "").replaceAll("-", "") || Math.random().toString(16).slice(2)}`;
-    const dayLabel = relativeDayLabelFromValue(s.createdAt);
-
-    return `
-      <div class="item">
-        <div style="min-width:0;">
-          <div class="item-title">
-            ${money(s.total)}
-            <span class="muted">(${escapeHtml(s.method || "Efectivo")})</span>
-          </div>
-          <div class="item-sub">
-            ${when.toLocaleDateString("es-MX")} ${hh}:${mm} • ${itemsCount} artículos
-            <span class="muted">• ${escapeHtml(saleItemsPreview(items))}</span>
-          </div>
-
-          <div class="collapse mt-2" id="${collapseId}">
-            <div class="small muted">
-              ${items.map(it => `
-                <div class="d-flex justify-content-between">
-                  <span>${escapeHtml(it.name || "Producto")} <span class="muted">x${Number(it.qty || 1)}</span></span>
-                  <span>${money(Number(it.price || 0) * Number(it.qty || 1))}</span>
-                </div>
-              `).join("")}
-              <hr style="border-color: rgba(255,255,255,.10);" class="my-2" />
-              <div class="d-flex justify-content-between">
-                <span>Subtotal</span><span>${money(s.subtotal)}</span>
-              </div>
-              <div class="d-flex justify-content-between">
-                <span>Descuento</span><span>${money(s.discount)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="d-flex flex-column align-items-end gap-2">
-          <span class="chip">${dayLabel}</span>
-          <button class="btn btn-soft btn-sm"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#${collapseId}">
-            Detalles
-          </button>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  renderTodayTotal();
-  renderSalesBreakdown(sorted);
-}
-
-/* ==========
-   Desglose (opcional)
-   Si tu HTML tiene estos IDs:
-   - sumIngresosHoy, sumTicketsHoy, sumUltimaVenta, sumArticulosHoy, salesTodayList
-   Se llena; si no, no pasa nada.
-   ========== */
-function renderSalesBreakdown(sortedSales) {
-  const now = Date.now();
-  const today0 = startOfDayMs(now);
-
-  const todaySales = sortedSales.filter(s => (toMs(s.createdAt) || 0) >= today0);
-
-  const ingresosHoy = todaySales.reduce((acc, s) => acc + Number(s.total || 0), 0);
-  const ticketsHoy = todaySales.length;
-  const articulosHoy = todaySales.reduce((acc, s) => {
-    const items = Array.isArray(s.items) ? s.items : [];
-    return acc + items.reduce((a, it) => a + Number(it.qty || 0), 0);
-  }, 0);
-  const ultimaMs = todaySales[0] ? toMs(todaySales[0].createdAt) : null;
-
-  setText("sumIngresosHoy", money(ingresosHoy));
-  setText("sumTicketsHoy", ticketsHoy ? String(ticketsHoy) : "—");
-  setText("sumArticulosHoy", articulosHoy ? String(articulosHoy) : "—");
-  setText("sumUltimaVenta", ultimaMs
-    ? new Date(ultimaMs).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })
-    : "—"
-  );
-
-  const todayList = document.getElementById("salesTodayList");
-  if (!todayList) return;
-
-  if (!todaySales.length) {
-    todayList.innerHTML = `<div class="muted">Hoy no hay ventas todavía.</div>`;
-    return;
-  }
-
-  todayList.innerHTML = todaySales.slice(0, 20).map(s => {
-    const ms = toMs(s.createdAt);
-    const t = ms ? new Date(ms).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }) : "--:--";
-    const itemsCount = (s.items || []).reduce((a, x) => a + Number(x.qty || 0), 0);
-    return `
-      <div class="item">
-        <div>
-          <div class="item-title">Venta <span class="muted tiny">• ${t}</span></div>
-          <div class="item-sub">${itemsCount} artículos • ${escapeHtml(s.method || "Efectivo")}</div>
-        </div>
-        <div class="fw-semibold">${money(s.total)}</div>
-      </div>
-    `;
-  }).join("");
-}
-
-// ---------- Totals ----------
-function updateTotals() {
-  const subtotal = cart.reduce((acc, it) => acc + (Number(it.price) * Number(it.qty)), 0);
-  const discount = Math.max(0, Number(discountInput?.value || 0));
-  const total = Math.max(0, subtotal - discount);
-
-  if (subtotalLabel) subtotalLabel.textContent = money(subtotal);
-  if (totalLabel) totalLabel.textContent = money(total);
-}
-
-// ---------- SKU helpers ----------
-function sanitizeSkuPart(s) {
-  return String(s || "")
-    .trim()
-    .toUpperCase()
-    .replace(/Á/g, "A").replace(/É/g, "E").replace(/Í/g, "I").replace(/Ó/g, "O").replace(/Ú/g, "U").replace(/Ñ/g, "N")
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-function randomBase36(len = 4) {
-  return Math.random().toString(36).slice(2, 2 + len).toUpperCase();
-}
-function skuExistsInBiz(sku) {
-  const s = String(sku || "").trim().toLowerCase();
-  return products.some(p => (p.sku || "").trim().toLowerCase() === s);
-}
-function generateSkuFromName(name) {
-  const base = sanitizeSkuPart(name).slice(0, 12) || "PROD";
-  return `${base}-${randomBase36(4)}`;
-}
-function generateUniqueSku(name) {
-  let sku = generateSkuFromName(name);
-  let tries = 0;
-  while (skuExistsInBiz(sku) && tries < 25) { sku = generateSkuFromName(name); tries++; }
-  return sku;
-}
-function setSkuAutoFromName() {
-  if (!pmSku || !pmName) return;
-  if (pmSkuManual?.checked) return;
-  pmSku.value = generateUniqueSku(pmName.value);
-}
-
-// ---------- Product modal ----------
-function openNewProduct() {
-  clearPosMsg();
-  if (!productModal) return setPosMsg("Falta el modal de producto en el HTML.", false);
-
-  hideError(productModalError);
-  if (productModalTitle) productModalTitle.textContent = "Nuevo producto";
-
-  pmName.value = "";
-  pmPrice.value = "";
-  pmStock.value = "";
-  pmUnit.value = "";
-  if (pmTrackStock) pmTrackStock.checked = true;
-
-  if (pmSkuManual) pmSkuManual.checked = false;
-  if (pmSku) {
-    pmSku.disabled = true;
-    pmSku.value = generateUniqueSku("");
-  }
-
-  productModal.show();
-}
-
-function saveProductFromModal() {
-  hideError(productModalError);
-
-  const name = (pmName?.value || "").trim();
-  let sku = (pmSku?.value || "").trim();
-  const unit = (pmUnit?.value || "").trim();
-  const price = Number(pmPrice?.value || 0);
-  const stock = Number(pmStock?.value || 0);
-  const trackStock = pmTrackStock ? !!pmTrackStock.checked : true;
-
-  if (name.length < 2) return showError(productModalError, "Nombre inválido.");
-  if (!Number.isFinite(price) || price < 0) return showError(productModalError, "Precio inválido.");
-  if (!Number.isFinite(stock) || stock < 0) return showError(productModalError, "Stock inválido.");
-
-  if (!pmSkuManual?.checked) {
-    sku = generateUniqueSku(name);
-  } else {
-    if (sku) {
-      const exists = products.some(p => (p.sku || "").toLowerCase() === sku.toLowerCase());
-      if (exists) return showError(productModalError, "Ese SKU ya existe.");
-    }
-  }
-
-  const all = getAllProducts();
-  all.push({
-    id: crypto.randomUUID(),
-    bizId: ctx.biz.id,
-    name,
-    sku,
-    unit,
-    price,
-    stock: Math.floor(stock),
-    trackStock,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  });
-  saveAllProducts(all);
-
-  products = getProductsByBiz(ctx.biz.id);
-  renderProducts(productSearch?.value || "");
-  productModal.hide();
-}
-
-function deleteProduct(id) {
-  const p = products.find(x => x.id === id);
-  if (!p) return;
-
-  if (!confirm(`Eliminar "${p.name}"?`)) return;
-
-  cart = cart.filter(x => x.productId !== id);
-
-  const all = getAllProducts().filter(x => !(x.id === id && x.bizId === ctx.biz.id));
-  saveAllProducts(all);
-
-  products = getProductsByBiz(ctx.biz.id);
-  renderProducts(productSearch?.value || "");
-  renderCart();
-}
-
-// ---------- Cart actions ----------
+/* ---------- Cart actions ---------- */
 function addToCart(productId) {
   const p = products.find(x => x.id === productId);
   if (!p) return;
 
-  if (Number(p.stock) <= 0 && (p.trackStock ?? true)) return setPosMsg("No hay stock de ese producto.");
+  if (Number(p.stock) <= 0) return setPosMsg("No hay stock de ese producto.");
 
   const item = cart.find(x => x.productId === productId);
   const currentQty = item ? item.qty : 0;
 
-  if ((p.trackStock ?? true) && currentQty + 1 > Number(p.stock)) return setPosMsg("No puedes agregar más, excede el stock.");
+  if (currentQty + 1 > Number(p.stock)) return setPosMsg("No puedes agregar más, excede el stock.");
 
   clearPosMsg();
   if (!item) cart.push({ productId: p.id, name: p.name, price: p.price, qty: 1 });
@@ -547,7 +619,6 @@ function addToCart(productId) {
 
   renderCart();
 }
-
 function incCart(productId) {
   const item = cart.find(x => x.productId === productId);
   if (!item) return;
@@ -555,7 +626,7 @@ function incCart(productId) {
   const p = products.find(x => x.id === productId);
   if (!p) return;
 
-  if ((p.trackStock ?? true) && item.qty + 1 > Number(p.stock)) return setPosMsg("No puedes agregar más, excede el stock.");
+  if (item.qty + 1 > Number(p.stock)) return setPosMsg("No puedes agregar más, excede el stock.");
 
   clearPosMsg();
   item.qty += 1;
@@ -567,7 +638,6 @@ function decCart(productId) {
 
   clearPosMsg();
   item.qty -= 1;
-  if (item.qty <= 0) cart = cart.filter(x => x.productId === productId ? false : true);
   cart = cart.filter(x => x.qty > 0);
   renderCart();
 }
@@ -582,117 +652,232 @@ function clearCart() {
   renderCart();
 }
 
-// ---------- Checkout ----------
-function checkout() {
+/* =========================
+   PAGO + REFERENCIA (SOLO MODAL)
+========================= */
+function normalizePaymentMethod(val) {
+  const v = String(val || "").trim().toLowerCase();
+  if (v === "efectivo" || v === "cash") return "cash";
+  if (v === "tarjeta" || v === "card") return "card";
+  if (v === "transferencia" || v === "transfer") return "transfer";
+  if (v === "mixto" || v === "mixed") return "mixed";
+  return "cash";
+}
+function pmNeedsRef(pm) {
+  return pm === "card" || pm === "transfer" || pm === "mixed";
+}
+function pmLabel(pm) {
+  if (pm === "card") return "Tarjeta";
+  if (pm === "transfer") return "Transferencia";
+  if (pm === "mixed") return "Mixto";
+  return "Efectivo";
+}
+
+function openPaymentRefModal(pm) {
+  if (!paymentRefModalEl || !paymentRefModalInput || !btnRefNext) {
+    setPosMsg("Falta el modal de referencia (#paymentRefModal / #paymentRefModalInput / #btnRefNext).", false);
+    return;
+  }
+
+  clearPosMsg();
+  if (paymentRefHelp) {
+    paymentRefHelp.textContent = `Pago con ${pmLabel(pm)} — escribe el folio/referencia`;
+  }
+
+  paymentRefModalInput.value = "";
+  paymentRefModalEl.addEventListener(
+    "shown.bs.modal",
+    () => paymentRefModalInput.focus(),
+    { once: true }
+  );
+
+  bsModal(paymentRefModalEl)?.show();
+}
+
+function openCheckoutChoice() {
+  if (cart.length === 0) return;
+  if (ctx?.auth !== "supabase") {
+    return setPosMsg("Este POS está en modo local. Activa Supabase para tickets QR.", false);
+  }
+  bsModal(checkoutChoiceModalEl)?.show();
+}
+
+function openCheckoutFlow() {
+  if (cart.length === 0) return;
+
+  const pm = normalizePaymentMethod(paymentMethod?.value || "cash");
+  pendingCheckout = { pm, ref: "" };
+
+  if (pmNeedsRef(pm)) return openPaymentRefModal(pm);
+  openCheckoutChoice();
+}
+
+/* =========================
+   RECIBO DIGITAL (token)
+========================= */
+let lastReceiptUrl = "";
+
+async function createReceiptTokenSB({ saleId, businessId, userId }) {
+  const token = crypto.randomUUID().replaceAll("-", "");
+  const payload = { token, sale_id: saleId, business_id: businessId, created_by: userId };
+
+  const { error } = await supabase.from("receipt_links").insert([payload]);
+  if (error) throw error;
+
+  return token;
+}
+
+function receiptUrlFromToken(token) {
+  return `${location.origin}/recibo.html?t=${encodeURIComponent(token)}`;
+}
+
+async function showReceiptModal({ bizName, createdAt, saleId, total, url, paymentRef }) {
+  if (rmBizName) rmBizName.textContent = bizName || "Mi POS";
+
+  const dt = new Date(createdAt).toLocaleString("es-MX");
+  const folio = shortId(saleId);
+
+  if (rmDate) {
+    rmDate.textContent = paymentRef
+      ? `${dt} • Ref: ${paymentRef}`
+      : dt;
+  }
+
+  if (rmFolio) rmFolio.textContent = `Folio: ${folio}`;
+  if (rmTotal) rmTotal.textContent = money(total);
+  if (rmThanks) rmThanks.textContent = `¡Gracias por tu compra! — ${bizName || "Mi POS"}`;
+
+  if (rmOpenLink) rmOpenLink.href = url;
+
+  try {
+    if (window.QRCode && rmQR) {
+      await window.QRCode.toCanvas(rmQR, url, { margin: 1, width: 230 });
+    } else {
+      setPosMsg("Falta qrcode.min.js (window.QRCode).", false);
+    }
+  } catch (e) {
+    console.error("QR error:", e);
+    setPosMsg("No pude generar el QR (revisa qrcode.js).", false);
+  }
+
+  if (rmCopyLink) {
+    rmCopyLink.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        setPosMsg("Link copiado ✅", true);
+        setTimeout(clearPosMsg, 1200);
+      } catch {
+        setPosMsg("No pude copiar 😅", false);
+      }
+    };
+  }
+
+  bsModal(receiptModalEl)?.show();
+}
+
+/* =========================
+   CHECKOUT (Supabase)
+   - Guarda referencia en sales.note (porque no existe payment_ref)
+========================= */
+async function checkoutSupabase({ withTicket }) {
   clearPosMsg();
   if (cart.length === 0) return setPosMsg("Carrito vacío.");
+  if (!ctx?.biz?.id) return setPosMsg("No se encontró tu empresa.");
 
   const subtotal = cart.reduce((acc, it) => acc + (Number(it.price) * Number(it.qty)), 0);
   const discount = Math.max(0, Number(discountInput?.value || 0));
   const total = Math.max(0, subtotal - discount);
-
   if (total <= 0) return setPosMsg("El total debe ser mayor a 0.");
 
-  // validar stock
-  for (const it of cart) {
-    const p = products.find(x => x.id === it.productId);
-    if (!p) return setPosMsg("Un producto ya no existe.");
-    if ((p.trackStock ?? true) && Number(it.qty) > Number(p.stock)) return setPosMsg(`Stock insuficiente: ${p.name}`);
+  const pm = pendingCheckout?.pm || normalizePaymentMethod(paymentMethod?.value || "cash");
+  const ref = String(pendingCheckout?.ref || "").trim();
+
+  if (pmNeedsRef(pm) && !ref) return setPosMsg("Falta la referencia del pago.", false);
+
+  try {
+    const note = pmNeedsRef(pm) ? `Ref: ${ref}` : null;
+
+    const { data: sale, error: saleErr } = await supabase
+      .from("sales")
+      .insert([{
+        business_id: ctx.biz.id,
+        created_by: ctx.user.id,
+        status: "paid",
+        payment_method: pm,
+        subtotal,
+        discount,
+        tax: 0,
+        total,
+        note,
+      }])
+      .select("id, created_at, payment_method, subtotal, discount, total, note")
+      .single();
+
+    if (saleErr) throw saleErr;
+
+    const itemsPayload = cart.map(it => ({
+      sale_id: sale.id,
+      product_id: it.productId,
+      name: it.name,
+      qty: Number(it.qty),
+      unit_price: Number(it.price),
+      cost: 0,
+      line_total: Number(it.price) * Number(it.qty),
+    }));
+
+    const { error: itemsErr } = await supabase.from("sale_items").insert(itemsPayload);
+    if (itemsErr) throw itemsErr;
+
+    cart = [];
+    pendingCheckout = null;
+    if (discountInput) discountInput.value = "0";
+
+    renderCart();
+    renderProducts(productSearch?.value || "");
+
+    await loadSalesSB();
+    renderSales();
+
+    setPosMsg(`Venta registrada ✅ ${money(total)}`, true);
+    setTimeout(clearPosMsg, 1400);
+
+    if (!withTicket) return;
+
+    const token = await createReceiptTokenSB({
+      saleId: sale.id,
+      businessId: ctx.biz.id,
+      userId: ctx.user.id
+    });
+
+    lastReceiptUrl = receiptUrlFromToken(token);
+
+    await showReceiptModal({
+      bizName: ctx.biz.name || "Mi POS",
+      createdAt: sale.created_at,
+      saleId: sale.id,
+      total: sale.total,
+      url: lastReceiptUrl,
+      paymentRef: pmNeedsRef(pm) ? ref : ""
+    });
+
+  } catch (e) {
+    console.error("checkout error:", e);
+    setPosMsg(`Checkout error: ${e?.message || e}`, false);
   }
-
-  // descontar stock
-  const allProducts = getAllProducts();
-  for (const it of cart) {
-    const idx = allProducts.findIndex(x => x.id === it.productId && x.bizId === ctx.biz.id);
-    if (idx !== -1) {
-      const track = allProducts[idx].trackStock ?? true;
-      if (track) allProducts[idx].stock = Math.max(0, Number(allProducts[idx].stock) - Number(it.qty));
-      allProducts[idx].updatedAt = new Date().toISOString();
-    }
-  }
-  saveAllProducts(allProducts);
-
-  // registrar venta
-  const sale = {
-    id: crypto.randomUUID(),
-    bizId: ctx.biz.id,
-    createdAt: new Date().toISOString(),
-    items: cart.map(item => ({
-      productId: item.productId,
-      name: item.name,
-      price: item.price,
-      qty: item.qty
-    })),
-    subtotal,
-    discount,
-    total,
-    method: paymentMethod?.value || "Efectivo"
-  };
-
-  const allSales = getAllSales();
-  allSales.push(sale);
-  saveAllSales(allSales);
-
-  // refrescar state
-  products = getProductsByBiz(ctx.biz.id);
-  sales = getSalesByBiz(ctx.biz.id);
-
-  cart = [];
-  if (discountInput) discountInput.value = "0";
-
-  renderProducts(productSearch?.value || "");
-  renderCart();
-  renderSales();
-
-  setPosMsg(`Venta registrada: ${money(total)}`, true);
-  setTimeout(() => clearPosMsg(), 1600);
 }
 
-// ---------- Logout ----------
+/* ---------- Logout ---------- */
 function wireLogout() {
-  if (!btnLogoutDash) return;
-
-  if (!logoutModal) {
-    btnLogoutDash.addEventListener("click", () => {
-      if (confirm("¿Seguro que deseas cerrar sesión?")) {
-        clearSession();
-        window.location.href = "Index.html";
-      }
-    });
-    return;
-  }
-
-  btnLogoutDash.addEventListener("click", () => logoutModal.show());
-  confirmLogout?.addEventListener("click", () => {
+  confirmLogout?.addEventListener("click", async () => {
+    try { await supabase.auth.signOut(); } catch {}
     clearSession();
     window.location.href = "Index.html";
   });
 }
 
-// ---------- Events ----------
+/* ---------- Events ---------- */
 function wireEvents() {
-  btnOpenProductModal?.addEventListener("click", openNewProduct);
-  btnSaveProductModal?.addEventListener("click", saveProductFromModal);
-
   productSearch?.addEventListener("input", () => renderProducts(productSearch.value));
-
-  pmName?.addEventListener("input", setSkuAutoFromName);
-
-  pmSkuManual?.addEventListener("change", () => {
-    const manual = !!pmSkuManual.checked;
-    if (pmSku) pmSku.disabled = !manual;
-
-    if (!manual) {
-      if (pmSku) pmSku.value = generateUniqueSku(pmName?.value || "");
-    } else {
-      pmSku?.focus();
-    }
-  });
-
-  btnGenSku?.addEventListener("click", () => {
-    if (!pmSku) return;
-    pmSku.value = generateUniqueSku(pmName?.value || "");
-  });
 
   productList?.addEventListener("click", (e) => {
     const btn = e.target.closest("button");
@@ -700,9 +885,7 @@ function wireEvents() {
     const id = btn.getAttribute("data-id");
     const act = btn.getAttribute("data-act");
     if (!id || !act) return;
-
     if (act === "add") addToCart(id);
-    if (act === "del") deleteProduct(id);
   });
 
   posSearch?.addEventListener("keydown", (e) => {
@@ -711,7 +894,9 @@ function wireEvents() {
     if (!q) return;
 
     const first = products.find(p =>
-      (p.name || "").toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q)
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.sku || "").toLowerCase().includes(q) ||
+      (p.barcode || "").toLowerCase() === q
     );
     if (!first) return setPosMsg("No encontré ese producto.");
 
@@ -733,46 +918,70 @@ function wireEvents() {
 
   discountInput?.addEventListener("input", updateTotals);
   btnClearCart?.addEventListener("click", clearCart);
-  btnCheckout?.addEventListener("click", checkout);
+
+  // ✅ cobrar (flow)
+  btnCheckout?.addEventListener("click", openCheckoutFlow);
+
+  // ✅ modal ref -> continuar
+  btnRefNext?.addEventListener("click", () => {
+    const pm = pendingCheckout?.pm || normalizePaymentMethod(paymentMethod?.value || "cash");
+    const ref = String(paymentRefModalInput?.value || "").trim();
+
+    if (pmNeedsRef(pm) && !ref) {
+      setPosMsg("Escribe la referencia/folio para continuar.", false);
+      paymentRefModalInput?.focus();
+      return;
+    }
+
+    pendingCheckout = { pm, ref };
+    bsModal(paymentRefModalEl)?.hide();
+    openCheckoutChoice();
+  });
+
+  // ✅ Enter en input modal ref
+  paymentRefModalInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      btnRefNext?.click();
+    }
+  });
+
+  // choice buttons
+  btnPayNoTicket?.addEventListener("click", async () => {
+    bsModal(checkoutChoiceModalEl)?.hide();
+    await checkoutSupabase({ withTicket: false });
+  });
+
+  btnPayWithTicket?.addEventListener("click", async () => {
+    bsModal(checkoutChoiceModalEl)?.hide();
+    await checkoutSupabase({ withTicket: true });
+  });
 
   wireLogout();
 }
 
-// ---------- Init ----------
-document.addEventListener("DOMContentLoaded", () => {
-  ctx = requireAuth();
+/* ---------- Init ---------- */
+document.addEventListener("DOMContentLoaded", async () => {
+  setupThemeBtn();
+
+  ctx = await requireAuthOrRedirect();
   if (!ctx) return;
+
+  if (ctx.auth === "supabase" && !ctx.biz?.id) {
+    try { ctx.biz = await getBusinessByOwnerSB(ctx.user.id); } catch {}
+  }
 
   renderBiz();
 
-  products = getProductsByBiz(ctx.biz.id);
-  sales = getSalesByBiz(ctx.biz.id);
+  await loadProducts();
 
+  if (ctx.auth === "supabase") await loadSalesSB();
+  else sales = ctx.biz?.id ? getSalesByBiz(ctx.biz.id) : [];
+
+  renderSales();
   renderProducts("");
   renderCart();
-  renderSales();
+  updateCheckoutEnabled();
 
   wireEvents();
 });
-
-document.addEventListener("DOMContentLoaded", () => {
-  const collapseEl = document.getElementById("salesBreakdown");
-  const recentWrap = document.getElementById("salesRecentWrap");
-  const hint = document.getElementById("salesHint");
-  const btn = document.getElementById("btnSalesToggle");
-
-  if (!collapseEl || !recentWrap) return;
-
-  collapseEl.addEventListener("show.bs.collapse", () => {
-    recentWrap.classList.add("d-none");
-    if (hint) hint.textContent = "Vista detallada";
-    if (btn) btn.innerHTML = `<i class="bi bi-chevron-up me-1"></i> Ocultar`;
-  });
-
-  collapseEl.addEventListener("hide.bs.collapse", () => {
-    recentWrap.classList.remove("d-none");
-    if (hint) hint.textContent = "Últimas ventas registradas";
-    if (btn) btn.innerHTML = `<i class="bi bi-list-ul me-1"></i> Desglose`;
-  });
-});
-

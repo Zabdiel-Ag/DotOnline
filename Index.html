@@ -3,128 +3,257 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>POS Social - Login</title>
+  <title>DotLine</title>
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
-    integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link rel="stylesheet" href="Estilos/Estilos.css" />
 </head>
 
-<body>
-  <div class="shell d-flex align-items-center justify-content-center p-3">
+<body class="auth-page auth-light">
+  <main class="auth-shell">
+    <div class="auth-grid">
 
-    <!-- LOGIN -->
-    <section id="view-login" class="w-100" style="max-width:420px;">
-      <div class="glass p-4">
-        <div class="mb-3">
-          <div class="h4 fw-bold mb-1">POS Social</div>
-          <div class="muted">Inicia sesión para continuar</div>
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">Correo</label>
-          <input id="loginEmail" class="form-control" type="email" placeholder="tucorreo@ejemplo.com" autocomplete="email" />
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small muted">Contraseña</label>
-          <input id="loginPassword" class="form-control" type="password" placeholder="••••••••" autocomplete="current-password" />
-        </div>
-
-        <div id="loginError" class="alert alert-danger py-2 d-none"></div>
-
-        <button id="btnLogin" class="btn btn-primary w-100 mb-2" type="button">Entrar</button>
-        <button id="goRegister" class="btn btn-soft w-100" type="button">Crear cuenta</button>
-      </div>
-    </section>
-
-    <!-- REGISTER -->
-    <section id="view-register" class="w-100 d-none" style="max-width:420px;">
-      <div class="glass p-4">
-        <div class="mb-3">
-          <div class="h4 fw-bold mb-1">Crear cuenta</div>
-          <div class="muted">Regístrate en 30 segundos</div>
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">Nombre</label>
-          <input id="regName" class="form-control" type="text" placeholder="Ej: Zabdiel" autocomplete="name" />
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">Correo</label>
-          <input id="regEmail" class="form-control" type="email" placeholder="tucorreo@ejemplo.com" autocomplete="email" />
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small muted">Contraseña</label>
-          <input id="regPassword" class="form-control" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
-        </div>
-
-        <div id="regError" class="alert alert-danger py-2 d-none"></div>
-
-        <button id="btnRegister" class="btn btn-primary w-100 mb-2" type="button">Crear cuenta</button>
-        <button id="goLogin" class="btn btn-soft w-100" type="button">Ya tengo cuenta</button>
-      </div>
-    </section>
-
-    <!-- CREATE BUSINESS (Wizard) -->
-    <section id="view-business" class="w-100 d-none" style="max-width:420px;">
-      <div class="glass p-4">
-        <div class="mb-3">
-          <div class="h4 fw-bold mb-1">Crea tu empresa</div>
-          <div class="muted">Esto aparece una sola vez</div>
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">Nombre de la empresa</label>
-          <input id="bizName" class="form-control" type="text" placeholder="Ej: Envios Strippy" />
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">@usuario (único)</label>
-          <input id="bizHandle" class="form-control" type="text" placeholder="Ej: strippy" />
-          <div class="form-text muted">Solo letras/números/guión bajo. Sin espacios.</div>
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">Categoría</label>
-          <select id="bizCategory" class="form-select">
-            <option value="">Selecciona…</option>
-            <option>Farmacia / Salud</option>
-            <option>Restaurante / Comida</option>
-            <option>Barbería / Estética</option>
-            <option>Tienda / Abarrotes</option>
-            <option>Ferretería</option>
-            <option>Ropa / Boutique</option>
-            <option>Servicios</option>
-            <option>Otro</option>
-          </select>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small muted">Logo (opcional)</label>
-          <input id="bizLogo" class="form-control" type="file" accept="image/*" />
-          <div class="mt-2 d-flex align-items-center gap-2">
-            <img id="bizLogoPreview" alt="preview" class="d-none"
-              style="width:56px;height:56px;border-radius:14px;object-fit:cover;border:1px solid rgba(255,255,255,.12)">
-            <div class="small muted">Vista previa</div>
+      <!-- IZQUIERDA: IMAGEN (solo desktop) -->
+      <section class="auth-left d-none d-lg-flex" aria-label="Vista previa">
+        <div class="auth-left-inner">
+          <div class="auth-hero">
+            <div class="auth-hero-frame">
+              <img
+                class="auth-hero-img"
+                src="Multimedia/Story para Instagram com convite para acesso ao website da empresa (2).png"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
           </div>
         </div>
+      </section>
 
-        <div id="bizError" class="alert alert-danger py-2 d-none"></div>
+      <!-- DERECHA: LOGIN / REGISTER / BUSINESS / EMPLOYEE -->
+<section class="auth-right" aria-label="Acceso">
+  <div class="auth-right-inner">
 
-        <button id="btnCreateBusiness" class="btn btn-primary w-100" type="button">Continuar</button>
-      </div>
-    </section>
-
-  </div>
+    <section class="auth-stack">
 
 
+        <!-- LOGIN -->
+        <section id="view-login" class="glass auth-card" aria-labelledby="loginTitle">
+          <header class="text-center mb-3">
+            <div class="auth-logo" id="loginTitle">DotLine</div>
+            <div class="muted">Inicia sesión para continuar</div>
+          </header>
+
+          <div class="mb-2">
+            <label for="loginEmail" class="form-label small muted">Correo</label>
+            <div class="input-group">
+              <span class="input-group-text bg-transparent border-0 pe-1" aria-hidden="true">
+                <i class="bi bi-envelope"></i>
+              </span>
+              <input
+                id="loginEmail"
+                class="form-control"
+                type="email"
+                placeholder="tucorreo@ejemplo.com"
+                autocomplete="email"
+                inputmode="email"
+              />
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="loginPassword" class="form-label small muted">Contraseña</label>
+            <div class="input-group">
+              <span class="input-group-text bg-transparent border-0 pe-1" aria-hidden="true">
+                <i class="bi bi-lock"></i>
+              </span>
+              <input
+                id="loginPassword"
+                class="form-control"
+                type="password"
+                placeholder="••••••••"
+                autocomplete="current-password"
+              />
+            </div>
+          </div>
+
+          <div id="loginError" class="alert alert-danger py-2 d-none" role="alert" aria-live="polite"></div>
+
+          <button id="btnLogin" class="btn btn-primary w-100 mb-2" type="button">
+            <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>
+            Entrar
+          </button>
+
+          <div class="text-center mt-3">
+            <button id="btnForgot" class="btn btn-link p-0 small auth-link" type="button">
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+        </section>
+
+        <!-- CARD EXTRA estilo Instagram -->
+        <section class="glass auth-card auth-card-mini text-center" id="loginBottomCard" aria-label="Registro rápido">
+          <div class="small">
+            ¿No tienes cuenta?
+            <button id="goRegister2" class="btn btn-link p-0 auth-link auth-link-primary" type="button">
+              Regístrate
+            </button>
+          </div>
+        </section>
+
+        <!-- REGISTER -->
+        <section id="view-register" class="glass auth-card d-none" aria-labelledby="registerTitle">
+          <header class="auth-card-head text-center mb-3">
+            <div class="auth-logo" id="registerTitle">Crear cuenta</div>
+          </header>
+
+          <div class="mb-3">
+            <label class="form-label small muted">Tipo de cuenta</label>
+            <div class="d-flex gap-2" role="group" aria-label="Tipo de cuenta">
+              <button id="btnRoleOwner" class="btn btn-primary flex-fill" type="button">
+                <i class="bi bi-shop me-1" aria-hidden="true"></i>
+                Propetario de la tienda          
+              </button>
+              <button id="btnRoleEmployee" class="btn btn-soft flex-fill" type="button">
+                <i class="bi bi-people me-1" aria-hidden="true"></i>
+                Soy empleado
+              </button>
+            </div>
+            <div class="form-text muted mt-2" id="roleHint">
+              Tu propia empresa             
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label for="regName" class="form-label small muted">Nombre</label>
+            <div class="input-group">
+              <span class="input-group-text bg-transparent border-0 pe-1" aria-hidden="true">
+                <i class="bi bi-person"></i>
+              </span>
+              <input id="regName" class="form-control" type="text" placeholder="Ej: Zabdiel" autocomplete="name" />
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label for="regEmail" class="form-label small muted">Correo</label>
+            <div class="input-group">
+              <span class="input-group-text bg-transparent border-0 pe-1" aria-hidden="true">
+                <i class="bi bi-envelope"></i>
+              </span>
+              <input id="regEmail" class="form-control" type="email" placeholder="tucorreo@ejemplo.com" autocomplete="email" inputmode="email" />
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="regPassword" class="form-label small muted">Contraseña</label>
+            <div class="input-group">
+              <span class="input-group-text bg-transparent border-0 pe-1" aria-hidden="true">
+                <i class="bi bi-lock"></i>
+              </span>
+              <input id="regPassword" class="form-control" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
+            </div>
+          </div>
+
+          <div id="regError" class="alert alert-danger py-2 d-none" role="alert" aria-live="polite"></div>
+
+          <button id="btnRegister" class="btn btn-primary w-100 mb-2" type="button">
+            <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>
+            Crear cuenta
+          </button>
+
+          <button id="goLogin" class="btn btn-soft w-100" type="button">
+            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>
+            Ya tengo cuenta
+          </button>
+        </section>
+
+        <!-- EMPLOYEE JOIN (NECESARIO PARA TU JS) -->
+        <section id="view-employee-join" class="glass auth-card d-none" aria-labelledby="joinTitle">
+          <header class="auth-card-head text-center mb-3">
+            <div class="auth-logo auth-logo-sm" id="joinTitle">Unirme a una empresa</div>
+            <div class="muted">Pega el código que se te asigno</div>
+          </header>
+
+          <div class="mb-2">
+            <label for="empInviteCode" class="form-label small muted">Código</label>
+            <div class="input-group">
+              <span class="input-group-text bg-transparent border-0 pe-1" aria-hidden="true">
+                <i class="bi bi-qr-code"></i>
+              </span>
+              <input id="empInviteCode" class="form-control" type="text" placeholder="Ej: A1B2C3D4" />
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mb-2">
+            <button id="btnJoinByCode" class="btn btn-primary flex-fill" type="button">
+              <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>
+              Unirme
+            </button>
+          </div>
+
+          <div id="empJoinError" class="alert alert-danger py-2 d-none" role="alert" aria-live="polite"></div>
+
+          <button id="btnBackToRole" class="btn btn-soft w-100 mt-2" type="button">
+            <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>
+            Volver
+          </button>
+        </section>
+
+        <!-- CREATE BUSINESS (NECESARIO PARA TU JS) -->
+        <section id="view-business" class="glass auth-card d-none" aria-labelledby="bizTitle">
+          <header class="auth-card-head text-center mb-3">
+            <div class="auth-logo auth-logo-sm" id="bizTitle">Crea tu empresa</div>
+          </header>
+
+          <div class="mb-2">
+            <label for="bizName" class="form-label small muted">Nombre de la empresa</label>
+            <input id="bizName" class="form-control" type="text" placeholder="Ej: DotONLINE Store" />
+          </div>
+
+          <div class="mb-2">
+            <label for="bizHandle" class="form-label small muted">@usuario (único)</label>
+            <input id="bizHandle" class="form-control" type="text" placeholder="Ej: dotonline" />
+            <div class="form-text muted">Solo letras/números/guión bajo. Sin espacios.</div>
+          </div>
+
+          <div class="mb-2">
+            <label for="bizCategory" class="form-label small muted">Categoría</label>
+            <select id="bizCategory" class="form-select">
+              <option value="">Selecciona…</option>
+              <option>Farmacia / Salud</option>
+              <option>Restaurante / Comida</option>
+              <option>Barbería / Estética</option>
+              <option>Tienda / Abarrotes</option>
+              <option>Ferretería</option>
+              <option>Ropa / Boutique</option>
+              <option>Servicios</option>
+              <option>Otro</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="bizLogo" class="form-label small muted">Logo (opcional)</label>
+            <input id="bizLogo" class="form-control" type="file" accept="image/*" />
+            <div class="mt-2 d-flex align-items-center gap-2">
+              <img id="bizLogoPreview" alt="Vista previa del logo" class="d-none" />
+              <div class="small muted">Vista previa</div>
+            </div>
+          </div>
+
+          <div id="bizError" class="alert alert-danger py-2 d-none" role="alert" aria-live="polite"></div>
+
+          <button id="btnCreateBusiness" class="btn btn-primary w-100" type="button">
+            <i class="bi bi-arrow-right-circle me-1" aria-hidden="true"></i>
+            Continuar
+          </button>
+        </section>
+
+      </section>
+    </div>
+  </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="JavaScript/Script.js"></script>
-  <script src="JavaScript/dashboard.js"></script>
+  <script type="module" src="JavaScript/Script.js"></script>
 </body>
 </html>

@@ -1,217 +1,273 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inventario</title>
+  <title>DotLine</title>
+
+  <!-- Boot overlay (carga visual) -->
+  <script src="JavaScript/boot.js"></script>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="Estilos/Estilos.css">
+
+  <link rel="stylesheet" href="Estilos/dashboard.css">
+  <link rel="stylesheet" href="Estilos/inventario.css">
+
+  <!-- Theme sin flash (NO module) -->
+  <script src="JavaScript/theme.js" defer></script>
 </head>
 
-<body>
-  
-  <header class="topfb cardx d-none d-lg-block">
-    <div class="topfb-inner">
+<body class="dash-body">
 
-      <!-- Left: logo + search -->
-      <div class="topfb-left">
-        <div class="topfb-brand">
-          <div class="topfb-badge">M</div>
-          <div class="d-none d-xl-block">
-            <div class="small muted" id="bizMiniLabel">—</div>
-          </div>
-        </div>
+<!-- TOP NAV -->
+<header class="topfb d-none d-lg-block">
+  <div class="topfb-inner">
 
-        <div class="topfb-search">
-          <i class="bi bi-search"></i>
-          <input id="dashSearchInput" type="text" placeholder="Buscar en tu POS..." />
-        </div>
-      </div>
-
-    <nav class="topfb-center" aria-label="Navegación">
-      <a class="topfb-tab nav-item active" href="Dashboard.html" data-screen="home" title="Inicio">
-        <i class="bi bi-house-door"></i>
+    <div class="topfb-left">
+      <a href="Dashboard.html"
+         class="topfb-logo d-none d-xl-inline-flex text-decoration-none align-items-center gap-2">
+        <img id="brandLogoImg" class="d-none" alt="Logo del negocio">
+        <span id="brandNameText" class="fw-semibold"></span>
       </a>
+    </div>
 
-      <a class="topfb-tab nav-item" href="Pos.html" data-screen="pos" title="Caja (POS)">
-        <i class="bi bi-credit-card-2-front"></i>
-      </a>
-
-      <!-- Inventario -->
-      <a class="topfb-tab nav-item" href="Inventario.html" data-screen="inventory" title="Inventario">
-        <i class="bi bi-box-seam"></i>
-      </a>
-
-      <!-- Reportes -->
-      <a class="topfb-tab nav-item" href="Reportes.html" data-screen="reports" title="Reportes">
-        <i class="bi bi-bar-chart"></i>
-      </a>
-
-      <!-- Equipo -->
-      <a class="topfb-tab nav-item" href="Equipo.html" data-screen="team" title="Equipo">
-        <i class="bi bi-people"></i>
-      </a>
+    <nav class="topfb-center">
+      <a class="topfb-tab" href="Dashboard.html" aria-label="Dashboard"><i class="bi bi-house-door"></i></a>
+      <a class="topfb-tab" href="Pos.html" aria-label="POS"><i class="bi bi-credit-card-2-front"></i></a>
+      <a class="topfb-tab active" href="Inventario.html" aria-label="Inventario"><i class="bi bi-box-seam"></i></a>
+      <a class="topfb-tab" href="Reportes.html" aria-label="Reportes"><i class="bi bi-bar-chart"></i></a>
+      <a class="topfb-tab" href="Equipo.html" aria-label="Equipo"><i class="bi bi-people"></i></a>
     </nav>
 
-
-      <!-- Right: actions -->
-      <div class="topfb-right">
-        <button class="topfb-iconbtn" id="btnOpenPost" type="button" title="Crear">
-          <i class="bi bi-plus-lg"></i>
-        </button>
-
-         <button class="topfb-iconbtn" id="btnTheme" type="button" title="Tema">
+    <div class="topfb-right d-flex align-items-center gap-2">
+      <button id="btnTheme" class="btn btn-icon" type="button" aria-label="Cambiar tema" title="Tema">
         <i class="bi bi-moon-stars"></i>
       </button>
 
+      <button class="btn btn-icon" type="button" data-bs-toggle="modal" data-bs-target="#logoutModalDash" aria-label="Cerrar sesión">
+        <i class="bi bi-box-arrow-right"></i>
+      </button>
+    </div>
 
+  </div>
+</header>
 
-        <button class="topfb-iconbtn" type="button" title="Perfil">
-          <i class="bi bi-person"></i>
-        </button>
+<!-- MAIN -->
+<main class="inv-wrap">
+
+  <!-- HEADER -->
+  <div class="inv-header">
+    <div>
+      <h1>Inventario</h1>
+      <div class="inv-sub" id="bizMini">—</div>
+    </div>
+
+    <div class="inv-header-actions">
+      <div class="inv-search">
+        <i class="bi bi-search"></i>
+        <input id="searchInput" type="text" inputmode="search" autocomplete="off"
+               placeholder="Buscar producto, SKU o código...">
       </div>
 
-    </div>
-  </header>
-
-  <!-- ===== PAGE WRAP ===== -->
-  <main class="inv-wrap">
-    <div class="inv-grid">
-
-      <!-- FORM -->
-      <section class="inv-card p-4">
-        <div class="d-flex justify-content-between align-items-start mb-3">
-          <div>
-            <div class="inv-title mb-1" id="formTitle">Agregar producto</div>
-            <div class="inv-sub">Se guarda en tu empresa actual</div>
-          </div>
-          <button id="btnResetForm" class="btn btn-outline-light btn-sm" type="button">Limpiar</button>
-        </div>
-
-        <div id="formError" class="alert alert-danger py-2 d-none"></div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">Nombre *</label>
-          <input id="pName" class="form-control" placeholder="Ej: Coca 600ml" />
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">SKU</label>
-
-          <div class="d-flex gap-2 align-items-center">
-            <input id="pSku" class="form-control" placeholder="SKU automático" disabled />
-
-            <div class="d-flex align-items-center gap-2 px-2 inv-sku-box">
-              <div class="form-check form-switch m-0">
-                <input class="form-check-input" type="checkbox" id="skuManual">
-              </div>
-              <span class="small muted" style="white-space:nowrap;">Manual</span>
-            </div>
-
-            <button class="btn btn-outline-light btn-sm" type="button" id="btnGenSku" title="Generar SKU">↻</button>
-          </div>
-
-          <div class="form-text muted">
-            En automático se genera solo. En manual tú lo escribes.
-          </div>
-        </div>
-
-        <div class="mb-2">
-          <label class="form-label small muted">Categoría (opcional)</label>
-          <input id="pCategory" class="form-control" placeholder="Ej: Bebidas" />
-        </div>
-
-        <div class="row g-2 mb-2">
-          <div class="col-6">
-            <label class="form-label small muted">Precio *</label>
-            <input id="pPrice" class="form-control" type="number" step="0.01" min="0" placeholder="0.00" />
-          </div>
-          <div class="col-6">
-            <label class="form-label small muted">Stock *</label>
-            <input id="pStock" class="form-control" type="number" step="1" min="0" placeholder="0" />
-          </div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label small muted">Unidad (opcional)</label>
-          <input id="pUnit" class="form-control" placeholder="Ej: pieza, caja, kg" />
-        </div>
-
-        <div class="d-flex gap-2">
-          <button id="btnSaveProduct" class="btn btn-primary w-100" type="button">Guardar</button>
-          <button id="btnDeleteProduct" class="btn btn-outline-danger d-none" type="button">Eliminar</button>
-        </div>
-      </section>
-
-      <!-- LIST -->
-      <section class="inv-card p-4">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-          <div>
-            <div class="inv-title mb-0">Productos</div>
-            <div class="inv-sub" id="countLabel">0 productos</div>
-          </div>
-          <div class="d-flex gap-2">
-            <button id="btnSeedDemo" class="btn btn-outline-light btn-sm" type="button">Cargar demo</button>
-            <button id="btnClearAll" class="btn btn-outline-danger btn-sm" type="button">Borrar todo</button>
-          </div>
-        </div>
-
-        <div class="table-responsive">
-          <table class="inv-table">
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>SKU</th>
-                <th>Categoría</th>
-                <th class="text-end">Precio</th>
-                <th class="text-end">Stock</th>
-                <th class="text-end">Acción</th>
-              </tr>
-            </thead>
-            <tbody id="productsTbody"></tbody>
-          </table>
-        </div>
-
-        <div id="emptyState" class="muted small mt-3 d-none">
-          No hay productos todavía. Agrega uno a la izquierda o carga el demo.
-        </div>
-      </section>
-
-    </div>
-  </main>
-
-  <!-- Modal Cerrar Sesión -->
-  <div class="modal fade" id="logoutModalDash" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content modal-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title">Cerrar sesión</h5>
-          <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
-        </div>
-
-        <div class="modal-body">
-          <p class="muted mb-0">
-            ¿Seguro que deseas cerrar sesión?<br>
-            Tendrás que volver a iniciar sesión para entrar.
-          </p>
-        </div>
-
-        <div class="modal-footer border-0">
-          <button class="btn btn-soft" data-bs-dismiss="modal" type="button">Cancelar</button>
-          <button id="confirmLogoutDash" class="btn btn-danger" type="button">Cerrar sesión</button>
-        </div>
-      </div>
+      <button id="btnClearAll" class="btn btn-outline-danger btn-sm" type="button">
+        <i class="bi bi-trash me-1"></i> Borrar
+      </button>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="JavaScript/Inventario.js"></script>
+  <!-- GRID -->
+  <div class="inv-grid">
 
-  <script src="JavaScript/theme.js"></script>
-  <script src="JavaScript/topnav.js"></script>
-  <script src="JavaScript/Topfb.js"></script>
+    <!-- FORM -->
+    <section class="inv-card inv-form">
+
+      <div class="inv-head">
+        <div>
+          <div class="inv-title" id="formTitle">Agregar producto</div>
+          <div class="inv-sub">Se guarda en tu empresa actual</div>
+        </div>
+        <button id="btnResetForm" class="btn btn-outline-light btn-sm" type="button" aria-label="Reiniciar formulario">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </button>
+      </div>
+
+      <div id="formError" class="alert alert-danger py-2 d-none" role="alert"></div>
+
+      <label class="form-label small muted" for="pName">Nombre *</label>
+      <input id="pName" class="form-control mb-2" type="text" autocomplete="off"
+             placeholder="Ej: Coca 600ml">
+
+      <!-- SKU -->
+      <label class="form-label small muted" for="pSku">SKU</label>
+      <div class="d-flex gap-2 align-items-center mb-2">
+        <input id="pSku" class="form-control" type="text" autocomplete="off"
+               placeholder="SKU automático (o lo puedes editar)">
+
+        <button id="btnGenSku" class="btn btn-outline-light btn-sm" type="button" title="Generar SKU automático">
+          <i class="bi bi-magic"></i>
+        </button>
+      </div>
+
+      <!-- BARCODE -->
+      <label class="form-label small muted" for="pBarcode">Código de barras</label>
+      <div class="d-flex gap-2 align-items-center mb-2">
+        <input id="pBarcode" class="form-control" type="text" inputmode="numeric" autocomplete="off"
+               placeholder="EAN13 / Code128 (opcional)">
+
+        <button id="btnScanBarcode" class="btn btn-outline-light btn-sm" type="button" title="Escanear con cámara">
+          <i class="bi bi-upc-scan"></i>
+        </button>
+      </div>
+
+      <label class="form-label small muted" for="pCategory">Categoría</label>
+      <input id="pCategory" class="form-control mb-2" type="text" autocomplete="off"
+             placeholder="Ej: Bebidas">
+
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <label class="form-label small muted" for="pPrice">Precio *</label>
+          <input id="pPrice" type="number" step="0.01" min="0" inputmode="decimal"
+                 class="form-control" placeholder="0.00">
+        </div>
+        <div class="col-6">
+          <label class="form-label small muted" for="pStock">Stock *</label>
+          <input id="pStock" type="number" step="1" min="0" inputmode="numeric"
+                 class="form-control" placeholder="0">
+        </div>
+      </div>
+
+      <label class="form-label small muted" for="pUnit">Unidad</label>
+      <input id="pUnit" class="form-control mb-3" type="text" autocomplete="off"
+             placeholder="Ej: pieza, caja">
+
+      <!-- IMAGEN -->
+      <div class="mb-3">
+        <label class="form-label small muted" for="pImage">Imagen del producto (opcional)</label>
+
+        <div class="d-flex gap-3 align-items-center">
+          <div class="inv-imgbox">
+            <img id="pImagePreview" alt="Preview" style="display:none;">
+            <div class="inv-imghint small muted">PNG/JPG/WebP</div>
+          </div>
+
+          <div class="flex-grow-1">
+            <input id="pImage" class="form-control" type="file"
+                   accept="image/png,image/jpeg,image/webp">
+
+            <button id="btnRemoveImage" class="btn btn-outline-light btn-sm mt-2" type="button">
+              Quitar imagen
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inv-actions">
+        <button id="btnSaveProduct" class="btn btn-primary w-100" type="button">
+          <i class="bi bi-check2-circle me-1"></i> Guardar
+        </button>
+
+        <button id="btnDeleteProduct" class="btn btn-outline-danger d-none" type="button" aria-label="Eliminar producto">
+          <i class="bi bi-trash me-1"></i>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- LIST -->
+    <section class="inv-card inv-list">
+      <div class="inv-head">
+        <div>
+          <div class="inv-title">Productos</div>
+          <div class="inv-sub" id="countLabel">0 productos</div>
+        </div>
+      </div>
+
+      <div class="inv-table-wrap">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>SKU</th>
+              <th>Categoría</th>
+              <th class="text-end">Precio</th>
+              <th class="text-end">Stock</th>
+              <th class="text-end">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="productsTbody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="muted small mt-3 d-none">
+        No hay productos todavía
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- TABBAR MÓVIL -->
+<nav class="ios-tabbar d-lg-none">
+  <a class="ios-tab" href="Dashboard.html" aria-label="Dashboard"><i class="bi bi-house-door"></i></a>
+  <a class="ios-tab" href="Pos.html" aria-label="POS"><i class="bi bi-credit-card-2-front"></i></a>
+  <a class="ios-tab active" href="Inventario.html" aria-label="Inventario"><i class="bi bi-box-seam"></i></a>
+  <a class="ios-tab" href="Reportes.html" aria-label="Reportes"><i class="bi bi-bar-chart"></i></a>
+  <a class="ios-tab" href="Equipo.html" aria-label="Equipo"><i class="bi bi-people"></i></a>
+</nav>
+
+<!-- MODAL: ESCÁNER CÓDIGO DE BARRAS -->
+<div class="modal fade" id="scanModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content modal-dark">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Escanear código de barras</h5>
+        <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="scanErr" class="alert alert-danger py-2 d-none" role="alert"></div>
+
+        <!-- Aquí se monta la cámara -->
+        <div id="scanReader"
+             style="width:100%;min-height:320px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.12);">
+        </div>
+
+        <div class="small muted mt-2">
+          Tips: usa buena luz, apunta al código y mantén el teléfono firme.
+        </div>
+      </div>
+
+      <div class="modal-footer border-0">
+        <button class="btn btn-soft" type="button" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGOUT MODAL -->
+<div class="modal fade" id="logoutModalDash" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content modal-dark">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Cerrar sesión</h5>
+        <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="muted mb-0">¿Seguro que deseas cerrar sesión?</p>
+      </div>
+      <div class="modal-footer border-0">
+        <button class="btn btn-soft" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button id="confirmLogoutDash" class="btn btn-danger" type="button">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+<script src="JavaScript/topnav.js" defer></script>
+<script src="JavaScript/tapmovil.js" defer></script>
+<script type="module" src="JavaScript/Inventario.js"></script>
 
 </body>
 </html>
