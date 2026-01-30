@@ -1,286 +1,223 @@
 <!doctype html>
 <html lang="es" data-bs-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DotLine — POS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recibo</title>
 
-  <script src="JavaScript/boot.js"></script>
-
+  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 
-  <link rel="stylesheet" href="Estilos/dashboard.css" />
-  <link rel="stylesheet" href="Estilos/POS.css" />
+  <style>
+    body{
+      background:#0b0f14;
+      color: rgba(233,238,245,.92);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+
+    .wrap{ max-width: 980px; }
+
+    .btn-soft{
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      color: rgba(233,238,245,.92);
+    }
+    .btn-soft:hover{ filter: brightness(1.08); }
+
+    .muted{ color: rgba(233,238,245,.70); }
+    .mini{ font-size: .92rem; }
+
+    /* ====== Ticket preview container (white) ====== */
+    #pdfArea{
+      width: 302px;              
+      background:#fff;
+      color:#111;
+      border-radius: 16px;
+      padding: 14px 14px 12px;
+      margin: 0 auto;
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+    }
+
+    /* header */
+    .t-center{ text-align:center; }
+    .t-hr{ border-top: 1px dashed rgba(0,0,0,.35); margin: 10px 0; }
+
+    .t-row{ display:flex; justify-content:space-between; gap:10px; }
+    .t-muted{ color:#666; font-size: 12px; }
+    .t-small{ font-size: 12px; }
+    .t-bold{ font-weight: 800; }
+    .t-title{ font-weight: 900; font-size: 16px; letter-spacing: .2px; }
+
+    .logo{
+      width: 54px; height: 54px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,.10);
+      display:none;
+      margin: 0 auto 8px;
+    }
+
+    /* items */
+    .items{
+      margin-top: 6px;
+      font-size: 12px;
+    }
+    .item{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 6px 0;
+      border-bottom: 1px dotted rgba(0,0,0,.18);
+    }
+    .item:last-child{ border-bottom: none; }
+
+    .item-name{
+      flex: 1;
+      min-width: 0;
+    }
+    .item-name .n{ font-weight: 700; line-height: 1.12; }
+    .item-name .s{ font-size: 11px; color:#555; margin-top: 2px; }
+
+    .item-qty{ width: 40px; text-align:right; color:#333; }
+    .item-total{ width: 84px; text-align:right; font-weight: 800; }
+
+    /* totals */
+    .totals{
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    .totals .t-row{ margin: 4px 0; }
+    .grand{
+      font-size: 14px;
+      font-weight: 900;
+      margin-top: 6px;
+    }
+
+    /* QR */
+    .qrbox{
+      margin-top: 10px;
+      display: grid;
+      place-items: center;
+      gap: 6px;
+    }
+    #rxQRCanvas{
+      width: 170px;
+      height: 170px;
+      background:#fff;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,.10);
+      padding: 8px;
+    }
+
+    .foot{
+      margin-top: 8px;
+      text-align:center;
+      font-size: 11px;
+      color:#555;
+    }
+
+    /* On screen controls look */
+    .cardx{
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 18px;
+      padding: 14px;
+    }
+  </style>
 </head>
 
-<body class="dash-body">
+<body>
+  <main class="container py-4">
+    <div class="wrap mx-auto">
 
-  <!-- TOP NAV — DESKTOP -->
-  <header class="topfb d-none d-lg-block">
-    <div class="topfb-inner">
+      <div id="rxErr" class="alert alert-danger d-none"></div>
 
-      <div class="topfb-left">
-        <a href="Dashboard.html"
-           class="topfb-logo d-none d-xl-inline-flex text-decoration-none align-items-center gap-2">
-          <img id="brandLogoImg" class="d-none" alt="Logo del negocio">
-          <span id="brandNameText" class="fw-semibold"></span>
-        </a>
+      <!-- Controles -->
+      <div class="cardx mb-3">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+          <div class="muted mini">
+            <i class="bi bi-shield-check me-1"></i>
+            Ticket digital seguro (token)
+          </div>
+          <div class="d-flex gap-2">
+            <button id="btnPdf" class="btn btn-primary">
+              <i class="bi bi-filetype-pdf me-1"></i> Descargar PDF
+            </button>
+            <button id="btnCopy" class="btn btn-soft">
+              <i class="bi bi-clipboard me-1"></i> Copiar link
+            </button>
+          </div>
+        </div>
       </div>
 
-      <nav class="topfb-center" aria-label="Navegación">
-        <a class="topfb-tab" href="Dashboard.html" title="Inicio"><i class="bi bi-house-door"></i></a>
-        <a class="topfb-tab active" href="Pos.html" title="Caja"><i class="bi bi-credit-card-2-front"></i></a>
-        <a class="topfb-tab" href="Inventario.html" title="Inventario"><i class="bi bi-box-seam"></i></a>
-        <a class="topfb-tab" href="Reportes.html" title="Reportes"><i class="bi bi-bar-chart"></i></a>
-        <a class="topfb-tab" href="Equipo.html" title="Equipo"><i class="bi bi-people"></i></a>
-      </nav>
+      <!-- Ticket area (white) -->
+      <section id="pdfArea" aria-label="Ticket">
+        <img id="rxLogo" class="logo" alt="Logo del negocio" />
 
-      <div class="topfb-right d-flex align-items-center gap-2">
-        <button id="btnTheme" class="btn btn-icon" type="button" title="Cambiar tema">
-          <i class="bi bi-moon-stars"></i>
-        </button>
-        <button class="btn btn-icon" type="button" title="Cerrar sesión"
-                data-bs-toggle="modal" data-bs-target="#logoutModal">
-          <i class="bi bi-box-arrow-right"></i>
-        </button>
-      </div>
+        <div class="t-center">
+          <div class="t-title" id="rxBizName">—</div>
+          <div class="t-muted" id="rxBizMeta">—</div>
+        </div>
 
-    </div>
-  </header>
+        <div class="t-hr"></div>
 
-  <!-- MAIN -->
-  <main class="container-fluid py-3">
-    <div class="pos-wrap mx-auto">
-      <section class="row g-3 align-items-stretch">
+        <div class="t-small">
+          <div class="t-row"><span class="t-muted">Fecha</span><span id="rxDate">—</span></div>
+          <div class="t-row"><span class="t-muted">Folio</span><span class="t-bold" id="rxFolio">—</span></div>
+          <div class="t-row"><span class="t-muted">Pago</span><span id="rxPayMethod">—</span></div>
+          <div class="t-row"><span class="t-muted">Ref</span><span id="rxPayRef">—</span></div>
+        </div>
 
-        <!-- PRODUCTOS -->
-        <div class="col-12 col-lg-5">
-          <div class="cardx p-3 h-100 pos-card d-flex flex-column">
-            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-              <div>
-                <div class="fw-semibold">Productos</div>
-                <div class="muted small">Agrega desde Inventario</div>
-              </div>
-            </div>
+        <div class="t-hr"></div>
 
-            <div class="pos-sticky">
-              <input class="form-control" id="productSearch" placeholder="Buscar producto..." />
-              <hr class="my-2" style="border-color: rgba(255,255,255,.10);" />
-            </div>
+        <div class="t-row t-small" style="margin-bottom:6px;">
+          <span class="t-bold">Items</span>
+          <span class="t-muted" id="rxItemsCount">0</span>
+        </div>
 
-            <div id="productList" class="list pos-list flex-grow-1 pos-scroll"></div>
+        <div id="rxItems" class="items"></div>
+
+        <div class="t-hr"></div>
+
+        <div class="totals">
+          <div class="t-row"><span class="t-muted">Subtotal</span><span id="rxSubtotal">$0.00</span></div>
+          <div class="t-row"><span class="t-muted">Descuento</span><span id="rxDiscount">$0.00</span></div>
+          <div class="t-row"><span class="t-muted">Impuestos</span><span id="rxTax">$0.00</span></div>
+          <div class="t-row grand"><span>Total</span><span id="rxTotal">$0.00</span></div>
+        </div>
+
+        <div class="t-hr"></div>
+
+        <div class="t-small">
+          <div class="t-muted">Nota</div>
+          <div id="rxNote" style="white-space:pre-wrap;">—</div>
+        </div>
+
+        <!-- QR dentro del ticket -->
+        <div class="qrbox">
+          <canvas id="rxQRCanvas" width="170" height="170"></canvas>
+          <div class="t-muted t-center" style="font-size:11px;">
+            Escanea para ver/guardar este recibo
           </div>
         </div>
 
-        <!-- CARRITO -->
-        <div class="col-12 col-lg-7">
-          <div class="cardx p-3 h-100 pos-card d-flex flex-column">
-
-            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-              <div>
-                <div class="fw-semibold">Carrito</div>
-                <div class="muted small">Busca y agrega productos</div>
-              </div>
-
-              <button id="btnClearCart" class="btn btn-soft btn-sm" type="button">
-                <i class="bi bi-trash me-1"></i> Vaciar
-              </button>
-            </div>
-
-            <input class="form-control mb-2" id="posSearch" placeholder="Buscar rápido (Enter)..." />
-
-            <div id="cartList" class="list pos-list mb-3 pos-scroll"></div>
-
-            <div class="row g-3 align-items-end mt-auto">
-              <div class="col-12 col-md-7">
-                <div class="summary">
-                  <div class="d-flex justify-content-between">
-                    <span class="muted">Subtotal</span>
-                    <span id="subtotalLabel">$0.00</span>
-                  </div>
-
-                  <div class="d-flex justify-content-between align-items-center mt-2">
-                    <span class="muted">Descuento</span>
-                    <div class="d-flex align-items-center gap-2" style="max-width:180px;">
-                      <input class="form-control form-control-sm" id="discountInput" type="number" min="0" step="0.01" value="0" />
-                      <span class="muted">$</span>
-                    </div>
-                  </div>
-
-                  <hr style="border-color: rgba(255,255,255,.10);" />
-
-                  <div class="d-flex justify-content-between fs-5 fw-bold">
-                    <span>Total</span>
-                    <span id="totalLabel">$0.00</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="col-12 col-md-5">
-                <label class="form-label small muted mb-1">Método de pago</label>
-                <select id="paymentMethod" class="form-select mb-2">
-                  <option value="cash">Efectivo</option>
-                  <option value="card">Tarjeta</option>
-                  <option value="transfer">Transferencia</option>
-                  <option value="mixed">Mixto</option>
-                </select>
-
-                <div class="d-grid gap-2">
-                  <button class="btn btn-success" id="btnCheckout" type="button" disabled>
-                    <i class="bi bi-cash-coin me-1"></i> Cobrar
-                  </button>
-                  <div id="posMsg" class="alert alert-danger py-2 d-none mb-0"></div>
-                </div>
-              </div>
-            </div>
-
-          </div>
+        <div class="foot" id="rxThanks">
+          Gracias por tu compra 💙
         </div>
-
-        <!-- VENTAS -->
-        <div class="col-12">
-          <div class="cardx p-3 pos-card">
-            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
-              <div>
-                <div class="fw-semibold">Ventas</div>
-                <div class="muted small" id="salesHint">Historial (hoy/ayer)</div>
-              </div>
-            </div>
-
-            <div id="salesRecentWrap" class="pos-sales">
-              <div id="salesList" class="list small pos-list"></div>
-            </div>
-          </div>
-        </div>
-
       </section>
+
     </div>
   </main>
 
-  <!-- iOS TAB BAR — MOBILE -->
-  <nav class="ios-tabbar d-lg-none" aria-label="Navegación móvil">
-    <a class="ios-tab" href="Dashboard.html" title="Inicio"><i class="bi bi-house-door"></i></a>
-    <a class="ios-tab active" href="Pos.html" title="Caja"><i class="bi bi-credit-card-2-front"></i></a>
-    <a class="ios-tab" href="Inventario.html" title="Inventario"><i class="bi bi-box-seam"></i></a>
-    <a class="ios-tab" href="Reportes.html" title="Reportes"><i class="bi bi-bar-chart"></i></a>
-    <a class="ios-tab" href="Equipo.html" title="Equipo"><i class="bi bi-people"></i></a>
-  </nav>
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
-  <!-- ✅ MODAL: REFERENCIA -->
-  <div class="modal fade" id="paymentRefModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content modal-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title">Referencia del pago</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
-        </div>
-
-        <div class="modal-body">
-          <div id="paymentRefHelp" class="muted small mb-2">Escribe el folio / referencia del pago.</div>
-
-          <label class="form-label small muted mb-1">Referencia</label>
-          <input id="paymentRefModalInput" class="form-control" placeholder="Ej: folio, autorización, referencia..." />
-          <div class="form-text muted">Requerida para pagos digitales.</div>
-        </div>
-
-        <div class="modal-footer border-0 d-flex gap-2">
-          <button class="btn btn-soft" data-bs-dismiss="modal" type="button">Cancelar</button>
-          <button id="btnRefNext" class="btn btn-primary" type="button">Continuar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ✅ MODAL: CHOICE ticket -->
-  <div class="modal fade" id="checkoutChoiceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content modal-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title">¿Ticket QR?</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
-        </div>
-        <div class="modal-body">
-          <p class="muted mb-0">
-            Puedes cobrar normal o generar un ticket digital (QR) para que lo escaneen y vean su recibo.
-          </p>
-        </div>
-        <div class="modal-footer border-0 d-flex gap-2">
-          <button class="btn btn-outline-light" id="btnPayNoTicket" type="button">Cobrar sin ticket</button>
-          <button class="btn btn-primary" id="btnPayWithTicket" type="button">Cobrar con ticket (QR)</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ✅ MODAL: TICKET QR -->
-  <div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content modal-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title">Ticket digital</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal" type="button"></button>
-        </div>
-
-        <div class="modal-body">
-          <div class="text-center">
-            <div class="fw-semibold" id="rmBizName">—</div>
-            <div class="small muted mt-1">
-              <span id="rmDate">—</span> • Folio: <span id="rmFolio">—</span>
-            </div>
-
-            <div class="fw-bold fs-4 mt-3" id="rmTotal">—</div>
-
-            <div class="my-3 d-flex justify-content-center">
-              <canvas id="rmQR" width="230" height="230"
-                style="background:#fff;border-radius:14px;padding:10px;"></canvas>
-            </div>
-
-            <div class="small muted mt-2" id="rmThanks">—</div>
-
-            <div class="d-grid gap-2 mt-3">
-              <a id="rmOpenLink" class="btn btn-soft" href="#" target="_blank" rel="noopener">
-                <i class="bi bi-box-arrow-up-right me-1"></i> Abrir recibo
-              </a>
-              <button id="rmCopyLink" class="btn btn-outline-light" type="button">
-                <i class="bi bi-clipboard me-1"></i> Copiar link
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer border-0">
-          <button class="btn btn-soft w-100" data-bs-dismiss="modal" type="button">Listo</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- LOGOUT MODAL -->
-  <div class="modal fade" id="logoutModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content modal-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title">Cerrar sesión</h5>
-          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p class="muted mb-0">¿Seguro que deseas cerrar sesión?</p>
-        </div>
-        <div class="modal-footer border-0">
-          <button class="btn btn-soft" data-bs-dismiss="modal">Cancelar</button>
-          <button id="confirmLogout" class="btn btn-danger">Cerrar sesión</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- QR lib (simple global) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
-  <script src="JavaScript/topnav.js"></script>
-  <script src="JavaScript/tapmovil.js"></script>
-  <script type="module" src="JavaScript/POS.js"></script>
+  <!-- tu JS -->
+  <script type="module" src="JavaScript/recibo.js"></script>
 </body>
 </html>

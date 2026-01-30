@@ -1,5 +1,10 @@
+
+import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
 import { supabase } from "./supabaseClient.js";
 
+/* =========================
+   KEYS (Local fallback)
+========================= */
 const USERS_KEY = "pos_users";
 const SESSION_KEY = "pos_session";
 const BUSINESSES_KEY = "pos_businesses";
@@ -35,7 +40,9 @@ const THEME_KEY = "dash_theme";
   }
 })();
 
-/* ---------- Storage local ---------- */
+/* =========================
+   STORAGE HELPERS
+========================= */
 function jget(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 }
@@ -55,7 +62,7 @@ function getBusinessByOwnerLocal(userId) {
 async function getBusinessByOwnerSB(ownerId) {
   const { data, error } = await supabase
     .from("businesses")
-    .select("id, name, handle, category, owner_id, logo_url, currency, timezone, created_at")
+    .select("id,name,handle,category,owner_id,logo_url,currency,timezone,created_at")
     .eq("owner_id", ownerId)
     .order("created_at", { ascending: true })
     .limit(1)
@@ -69,7 +76,7 @@ function getPublicLogoUrlFromBiz(biz) {
 }
 
 /* =========================
-   Theme Button
+   THEME BUTTON
 ========================= */
 function setupThemeBtn() {
   const btn = document.getElementById("btnTheme");
@@ -79,9 +86,7 @@ function setupThemeBtn() {
 
   const paint = (theme) => {
     const isLight = theme === "light";
-    btn.innerHTML = isLight
-      ? '<i class="bi bi-moon-stars"></i>'
-      : '<i class="bi bi-sun"></i>';
+    btn.innerHTML = isLight ? '<i class="bi bi-moon-stars"></i>' : '<i class="bi bi-sun"></i>';
   };
 
   const apply = (theme) => {
@@ -102,7 +107,7 @@ function setupThemeBtn() {
 }
 
 /* =========================
-   Auth (Supabase primero)
+   AUTH (Supabase primero)
 ========================= */
 async function requireAuthOrRedirect() {
   // 1) Supabase
@@ -112,18 +117,12 @@ async function requireAuthOrRedirect() {
 
     if (sbUser && !error) {
       let biz = null;
-      try { biz = await getBusinessByOwnerSB(sbUser.id); }
-      catch (e) { console.error("getBusinessByOwnerSB error:", e); biz = null; }
-
+      try { biz = await getBusinessByOwnerSB(sbUser.id); } catch (e) { console.error(e); }
       return {
         user: {
           id: sbUser.id,
           email: sbUser.email,
-          name:
-            sbUser.user_metadata?.full_name ||
-            sbUser.user_metadata?.name ||
-            sbUser.email ||
-            "Usuario",
+          name: sbUser.user_metadata?.full_name || sbUser.user_metadata?.name || sbUser.email || "Usuario",
         },
         biz,
         auth: "supabase",
@@ -133,25 +132,20 @@ async function requireAuthOrRedirect() {
     console.error("supabase.auth.getUser error:", e);
   }
 
-  // 2) Fallback localStorage
+  // 2) local fallback
   const session = getSession();
-  if (!session?.userId) {
-    window.location.href = "Index.html";
-    return null;
-  }
+  if (!session?.userId) { window.location.href = "Index.html"; return null; }
 
   const user = getUsers().find(u => u.id === session.userId);
-  if (!user) {
-    clearSession();
-    window.location.href = "Index.html";
-    return null;
-  }
+  if (!user) { clearSession(); window.location.href = "Index.html"; return null; }
 
   const biz = getBusinessByOwnerLocal(session.userId) || null;
   return { user, biz, auth: "local" };
 }
 
-/* ---------- Backward compatible (bizId/businessId) ---------- */
+/* =========================
+   BACKWARD COMPAT (bizId)
+========================= */
 function normalizeProduct(p) {
   if (!p) return p;
   if (!p.bizId && p.businessId) p.bizId = p.businessId;
@@ -163,11 +157,9 @@ function normalizeSale(s) {
   return s;
 }
 
-// Local products
 function getAllProducts() { return jget(PRODUCTS_KEY, []).map(normalizeProduct); }
 function getProductsByBiz(bizId) { return getAllProducts().filter(p => p.bizId === bizId); }
 
-// Sales local (fallback)
 function getAllSales() { return jget(SALES_KEY, []).map(normalizeSale); }
 function getSalesByBiz(bizId) { return getAllSales().filter(s => s.bizId === bizId); }
 
@@ -190,7 +182,6 @@ function mapRowToLocalLikeProduct(row) {
     updatedAt: row.updated_at || null,
   };
 }
-
 async function fetchProductsSB(bizId) {
   const { data, error } = await supabase
     .from("products")
@@ -204,17 +195,13 @@ async function fetchProductsSB(bizId) {
 }
 
 /* =========================
-   TIMEZONE: rangos "hoy/ayer"
+   TIMEZONE RANGES (hoy/ayer)
 ========================= */
 function getTZParts(date, timeZone) {
   const dtf = new Intl.DateTimeFormat("en-CA", {
     timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
     hour12: false,
   });
   const parts = dtf.formatToParts(date);
@@ -225,7 +212,6 @@ function getTZParts(date, timeZone) {
 
 function dayRangeUtcISO(timeZone, daysAgo = 0) {
   const now = new Date();
-
   const tzNowParts = getTZParts(now, timeZone);
   const y = Number(tzNowParts.year);
   const m = Number(tzNowParts.month);
@@ -236,12 +222,8 @@ function dayRangeUtcISO(timeZone, daysAgo = 0) {
 
   const baseParts = getTZParts(baseUTC, timeZone);
   const asIfUTC = new Date(Date.UTC(
-    Number(baseParts.year),
-    Number(baseParts.month) - 1,
-    Number(baseParts.day),
-    Number(baseParts.hour),
-    Number(baseParts.minute),
-    Number(baseParts.second)
+    Number(baseParts.year), Number(baseParts.month) - 1, Number(baseParts.day),
+    Number(baseParts.hour), Number(baseParts.minute), Number(baseParts.second)
   ));
 
   const offsetMs = baseUTC.getTime() - asIfUTC.getTime();
@@ -250,33 +232,16 @@ function dayRangeUtcISO(timeZone, daysAgo = 0) {
 
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
-
 /* =========================
-   SUPABASE SALES (sales + sale_items)
+   SUPABASE SALES
 ========================= */
 async function fetchSalesSBByRange(bizId, startISO, endISO) {
   const { data, error } = await supabase
     .from("sales")
     .select(`
-      id,
-      business_id,
-      created_at,
-      created_by,
-      status,
-      payment_method,
-      subtotal,
-      discount,
-      tax,
-      total,
-      note,
-      sale_items (
-        id,
-        product_id,
-        name,
-        qty,
-        unit_price,
-        line_total
-      )
+      id,business_id,created_at,created_by,status,payment_method,
+      subtotal,discount,tax,total,note,
+      sale_items (id,product_id,name,qty,unit_price,line_total)
     `)
     .eq("business_id", bizId)
     .gte("created_at", startISO)
@@ -288,7 +253,7 @@ async function fetchSalesSBByRange(bizId, startISO, endISO) {
 }
 
 /* =========================
-   Utils
+   UTILS
 ========================= */
 function money(n) {
   const x = Number(n || 0);
@@ -308,11 +273,7 @@ function toMs(value) {
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? null : ms;
 }
-function startOfDayMs(ms) {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
+function startOfDayMs(ms) { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); }
 function relativeDayLabelFromValue(value) {
   const ms = toMs(value);
   if (!ms) return "—";
@@ -324,13 +285,8 @@ function relativeDayLabelFromValue(value) {
   const rtf = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
   return rtf.format(diffDays, "day");
 }
-function shortId(uuid) {
-  try { return String(uuid).split("-")[0].toUpperCase(); } catch { return String(uuid || ""); }
-}
-function bsModal(el) {
-  if (!el) return null;
-  return bootstrap.Modal.getOrCreateInstance(el);
-}
+function shortId(uuid) { try { return String(uuid).split("-")[0].toUpperCase(); } catch { return String(uuid || ""); } }
+function bsModal(el) { if (!el) return null; return bootstrap.Modal.getOrCreateInstance(el); }
 
 /* =========================
    STATE
@@ -339,11 +295,12 @@ let ctx = null;
 let products = [];
 let sales = [];
 let cart = [];
-
-// checkout flow state
 let pendingCheckout = null; // { pm, ref }
+let lastReceiptUrl = "";
 
-/* ---------- DOM ---------- */
+/* =========================
+   DOM
+========================= */
 const brandLogoImg = document.getElementById("brandLogoImg");
 const brandNameText = document.getElementById("brandNameText");
 
@@ -359,8 +316,8 @@ const totalLabel = document.getElementById("totalLabel");
 const discountInput = document.getElementById("discountInput");
 
 const paymentMethod = document.getElementById("paymentMethod");
-const posMsg = document.getElementById("posMsg");
 
+const posMsg = document.getElementById("posMsg");
 const btnClearCart = document.getElementById("btnClearCart");
 const btnCheckout = document.getElementById("btnCheckout");
 const confirmLogout = document.getElementById("confirmLogout");
@@ -369,7 +326,6 @@ const confirmLogout = document.getElementById("confirmLogout");
 const paymentRefModalEl = document.getElementById("paymentRefModal");
 const paymentRefModalInput = document.getElementById("paymentRefModalInput");
 const btnRefNext = document.getElementById("btnRefNext");
-const paymentRefHelp = document.getElementById("paymentRefHelp");
 
 /* --- Checkout choice modal --- */
 const checkoutChoiceModalEl = document.getElementById("checkoutChoiceModal");
@@ -387,7 +343,9 @@ const rmOpenLink = document.getElementById("rmOpenLink");
 const rmCopyLink = document.getElementById("rmCopyLink");
 const rmThanks = document.getElementById("rmThanks");
 
-/* ---------- UI helpers ---------- */
+/* =========================
+   UI MSG
+========================= */
 function setPosMsg(msg, ok = false) {
   if (!posMsg) return;
   posMsg.textContent = msg;
@@ -404,7 +362,7 @@ function clearPosMsg() {
 }
 
 /* =========================
-   Cobrar habilitado/inhabilitado
+   CHECKOUT ENABLED
 ========================= */
 function updateCheckoutEnabled() {
   if (!btnCheckout) return;
@@ -414,7 +372,7 @@ function updateCheckoutEnabled() {
 }
 
 /* =========================
-   Render Biz + Logo
+   RENDER BIZ
 ========================= */
 function renderBiz() {
   const name = ctx?.biz?.name || "Mi POS";
@@ -422,39 +380,25 @@ function renderBiz() {
 
   const logoUrl = getPublicLogoUrlFromBiz(ctx?.biz);
   if (brandLogoImg) {
-    if (logoUrl) {
-      brandLogoImg.src = logoUrl;
-      brandLogoImg.classList.remove("d-none");
-    } else {
-      brandLogoImg.classList.add("d-none");
-    }
+    if (logoUrl) { brandLogoImg.src = logoUrl; brandLogoImg.classList.remove("d-none"); }
+    else brandLogoImg.classList.add("d-none");
   }
 }
 
 /* =========================
-   LOAD PRODUCTS
+   LOAD DATA
 ========================= */
 async function loadProducts() {
   if (!ctx?.biz?.id) { products = []; return; }
 
   if (ctx.auth === "supabase") {
-    try {
-      products = await fetchProductsSB(ctx.biz.id);
-      return;
-    } catch (e) {
-      console.error("fetchProductsSB error:", e);
-      products = [];
-      setPosMsg(`Productos SB error: ${e?.message || e}`, false);
-      return;
-    }
+    try { products = await fetchProductsSB(ctx.biz.id); return; }
+    catch (e) { console.error(e); products = []; setPosMsg(`Productos error: ${e?.message || e}`, false); return; }
   }
 
   products = getProductsByBiz(ctx.biz.id);
 }
 
-/* =========================
-   LOAD SALES (HOY + AYER)
-========================= */
 async function loadSalesSB() {
   if (!ctx?.biz?.id) { sales = []; return; }
 
@@ -471,13 +415,13 @@ async function loadSalesSB() {
     sales = [...sToday, ...sYest];
   } catch (e) {
     console.error("loadSalesSB error:", e);
-    setPosMsg(`Ventas SB error: ${e?.message || e}`, false);
+    setPosMsg(`Ventas error: ${e?.message || e}`, false);
     sales = [];
   }
 }
 
 /* =========================
-   Render products
+   RENDER PRODUCTS
 ========================= */
 function renderProducts(filterText = "") {
   const q = filterText.trim().toLowerCase();
@@ -495,9 +439,7 @@ function renderProducts(filterText = "") {
 
   for (const p of list) {
     const img = p.image_url ? `
-      <img src="${escapeHtml(p.image_url)}"
-           alt="img"
-           loading="lazy"
+      <img src="${escapeHtml(p.image_url)}" alt="img" loading="lazy"
            style="width:44px;height:44px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.12);" />
     ` : `
       <div style="width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
@@ -527,12 +469,12 @@ function renderProducts(filterText = "") {
 }
 
 /* =========================
-   Render sales (simple)
+   RENDER SALES
 ========================= */
 function renderSales() {
   if (!salesList) return;
-
   salesList.innerHTML = "";
+
   if (!sales.length) {
     salesList.innerHTML = `<div class="muted small">Sin ventas (hoy/ayer).</div>`;
     return;
@@ -557,7 +499,7 @@ function renderSales() {
 }
 
 /* =========================
-   Cart + Totals
+   CART + TOTALS
 ========================= */
 function updateTotals() {
   const subtotal = cart.reduce((acc, it) => acc + (Number(it.price) * Number(it.qty)), 0);
@@ -601,7 +543,9 @@ function renderCart() {
   updateCheckoutEnabled();
 }
 
-/* ---------- Cart actions ---------- */
+/* =========================
+   CART ACTIONS
+========================= */
 function addToCart(productId) {
   const p = products.find(x => x.id === productId);
   if (!p) return;
@@ -653,52 +597,35 @@ function clearCart() {
 }
 
 /* =========================
-   PAGO + REFERENCIA (SOLO MODAL)
+   PAYMENT + REF FLOW
 ========================= */
 function normalizePaymentMethod(val) {
   const v = String(val || "").trim().toLowerCase();
-  if (v === "efectivo" || v === "cash") return "cash";
-  if (v === "tarjeta" || v === "card") return "card";
-  if (v === "transferencia" || v === "transfer") return "transfer";
-  if (v === "mixto" || v === "mixed") return "mixed";
+  if (v === "cash" || v === "efectivo") return "cash";
+  if (v === "card" || v === "tarjeta") return "card";
+  if (v === "transfer" || v === "transferencia") return "transfer";
+  if (v === "mixed" || v === "mixto") return "mixed";
   return "cash";
 }
 function pmNeedsRef(pm) {
   return pm === "card" || pm === "transfer" || pm === "mixed";
 }
-function pmLabel(pm) {
-  if (pm === "card") return "Tarjeta";
-  if (pm === "transfer") return "Transferencia";
-  if (pm === "mixed") return "Mixto";
-  return "Efectivo";
-}
 
-function openPaymentRefModal(pm) {
-  if (!paymentRefModalEl || !paymentRefModalInput || !btnRefNext) {
-    setPosMsg("Falta el modal de referencia (#paymentRefModal / #paymentRefModalInput / #btnRefNext).", false);
+function openPaymentRefModal() {
+  if (!paymentRefModalEl || !paymentRefModalInput) {
+    setPosMsg("Falta el modal/input de referencia (#paymentRefModal / #paymentRefModalInput).", false);
     return;
   }
 
   clearPosMsg();
-  if (paymentRefHelp) {
-    paymentRefHelp.textContent = `Pago con ${pmLabel(pm)} — escribe el folio/referencia`;
-  }
-
   paymentRefModalInput.value = "";
-  paymentRefModalEl.addEventListener(
-    "shown.bs.modal",
-    () => paymentRefModalInput.focus(),
-    { once: true }
-  );
-
+  paymentRefModalEl.addEventListener("shown.bs.modal", () => paymentRefModalInput.focus(), { once: true });
   bsModal(paymentRefModalEl)?.show();
 }
 
 function openCheckoutChoice() {
   if (cart.length === 0) return;
-  if (ctx?.auth !== "supabase") {
-    return setPosMsg("Este POS está en modo local. Activa Supabase para tickets QR.", false);
-  }
+  if (ctx?.auth !== "supabase") return setPosMsg("Modo local: activa Supabase para ticket QR.", false);
   bsModal(checkoutChoiceModalEl)?.show();
 }
 
@@ -708,15 +635,44 @@ function openCheckoutFlow() {
   const pm = normalizePaymentMethod(paymentMethod?.value || "cash");
   pendingCheckout = { pm, ref: "" };
 
-  if (pmNeedsRef(pm)) return openPaymentRefModal(pm);
+  if (pmNeedsRef(pm)) return openPaymentRefModal();
   openCheckoutChoice();
 }
 
 /* =========================
-   RECIBO DIGITAL (token)
+   STOCK: DECREMENT SUPABASE
 ========================= */
-let lastReceiptUrl = "";
+async function decrementStockSB(items) {
+  const ids = items.map(x => x.productId);
 
+  const { data: rows, error: selErr } = await supabase
+    .from("products")
+    .select("id, stock")
+    .in("id", ids);
+
+  if (selErr) throw selErr;
+
+  const current = new Map((rows || []).map(r => [r.id, Number(r.stock || 0)]));
+
+  for (const it of items) {
+    const before = current.get(it.productId) ?? 0;
+    const after = Math.max(0, before - Number(it.qty || 0));
+
+    const { error: upErr } = await supabase
+      .from("products")
+      .update({ stock: after })
+      .eq("id", it.productId);
+
+    if (upErr) throw upErr;
+
+    const p = products.find(x => x.id === it.productId);
+    if (p) p.stock = Math.max(0, Number(p.stock || 0) - Number(it.qty || 0));
+  }
+}
+
+/* =========================
+   RECEIPT TOKEN
+========================= */
 async function createReceiptTokenSB({ saleId, businessId, userId }) {
   const token = crypto.randomUUID().replaceAll("-", "");
   const payload = { token, sale_id: saleId, business_id: businessId, created_by: userId };
@@ -728,56 +684,61 @@ async function createReceiptTokenSB({ saleId, businessId, userId }) {
 }
 
 function receiptUrlFromToken(token) {
-  return `${location.origin}/recibo.html?t=${encodeURIComponent(token)}`;
+  return `${location.origin}/recibo.html?t=${encodeURIComponent(token)}&pdf=1`;
 }
 
-async function showReceiptModal({ bizName, createdAt, saleId, total, url, paymentRef }) {
+
+/* =========================
+   QR RENDER (ESM)
+========================= */
+async function renderQrOnCanvas(canvas, text) {
+  if (!canvas) throw new Error("No existe el canvas #rmQR");
+
+  const ctx2d = canvas.getContext("2d");
+  ctx2d?.clearRect(0, 0, canvas.width, canvas.height);
+
+  await QRCode.toCanvas(canvas, text, {
+    margin: 1,
+    width: 230,
+    errorCorrectionLevel: "M",
+  });
+}
+
+async function showReceiptModal({ bizName, createdAt, saleId, total, url }) {
   if (rmBizName) rmBizName.textContent = bizName || "Mi POS";
-
-  const dt = new Date(createdAt).toLocaleString("es-MX");
-  const folio = shortId(saleId);
-
-  if (rmDate) {
-    rmDate.textContent = paymentRef
-      ? `${dt} • Ref: ${paymentRef}`
-      : dt;
-  }
-
-  if (rmFolio) rmFolio.textContent = `Folio: ${folio}`;
+  if (rmDate) rmDate.textContent = new Date(createdAt).toLocaleString("es-MX");
+  if (rmFolio) rmFolio.textContent = `Folio: ${shortId(saleId)}`;
   if (rmTotal) rmTotal.textContent = money(total);
   if (rmThanks) rmThanks.textContent = `¡Gracias por tu compra! — ${bizName || "Mi POS"}`;
-
   if (rmOpenLink) rmOpenLink.href = url;
 
-  try {
-    if (window.QRCode && rmQR) {
-      await window.QRCode.toCanvas(rmQR, url, { margin: 1, width: 230 });
-    } else {
-      setPosMsg("Falta qrcode.min.js (window.QRCode).", false);
+  const modal = bsModal(receiptModalEl);
+  modal?.show();
+
+  receiptModalEl?.addEventListener("shown.bs.modal", async () => {
+    try {
+      await renderQrOnCanvas(rmQR, url);
+    } catch (e) {
+      console.error("QR error:", e);
+      setPosMsg(`No pude generar QR: ${e?.message || e}`, false);
     }
-  } catch (e) {
-    console.error("QR error:", e);
-    setPosMsg("No pude generar el QR (revisa qrcode.js).", false);
-  }
+  }, { once: true });
 
   if (rmCopyLink) {
     rmCopyLink.onclick = async () => {
       try {
         await navigator.clipboard.writeText(url);
-        setPosMsg("Link copiado ✅", true);
+        setPosMsg("Link copiado :)", true);
         setTimeout(clearPosMsg, 1200);
       } catch {
-        setPosMsg("No pude copiar 😅", false);
+        setPosMsg("No pude copiar ):", false);
       }
     };
   }
-
-  bsModal(receiptModalEl)?.show();
 }
 
 /* =========================
-   CHECKOUT (Supabase)
-   - Guarda referencia en sales.note (porque no existe payment_ref)
+   CHECKOUT SUPABASE
 ========================= */
 async function checkoutSupabase({ withTicket }) {
   clearPosMsg();
@@ -793,6 +754,8 @@ async function checkoutSupabase({ withTicket }) {
   const ref = String(pendingCheckout?.ref || "").trim();
 
   if (pmNeedsRef(pm) && !ref) return setPosMsg("Falta la referencia del pago.", false);
+
+  const stockItems = cart.map(it => ({ productId: it.productId, qty: Number(it.qty) }));
 
   try {
     const note = pmNeedsRef(pm) ? `Ref: ${ref}` : null;
@@ -810,7 +773,7 @@ async function checkoutSupabase({ withTicket }) {
         total,
         note,
       }])
-      .select("id, created_at, payment_method, subtotal, discount, total, note")
+      .select("id, created_at, total")
       .single();
 
     if (saleErr) throw saleErr;
@@ -828,9 +791,12 @@ async function checkoutSupabase({ withTicket }) {
     const { error: itemsErr } = await supabase.from("sale_items").insert(itemsPayload);
     if (itemsErr) throw itemsErr;
 
+    await decrementStockSB(stockItems);
+
     cart = [];
     pendingCheckout = null;
     if (discountInput) discountInput.value = "0";
+    if (paymentRefModalInput) paymentRefModalInput.value = "";
 
     renderCart();
     renderProducts(productSearch?.value || "");
@@ -838,15 +804,15 @@ async function checkoutSupabase({ withTicket }) {
     await loadSalesSB();
     renderSales();
 
-    setPosMsg(`Venta registrada ✅ ${money(total)}`, true);
-    setTimeout(clearPosMsg, 1400);
+    setPosMsg(`Venta registrada :) ${money(total)}`, true);
+    setTimeout(clearPosMsg, 1200);
 
     if (!withTicket) return;
 
     const token = await createReceiptTokenSB({
       saleId: sale.id,
       businessId: ctx.biz.id,
-      userId: ctx.user.id
+      userId: ctx.user.id,
     });
 
     lastReceiptUrl = receiptUrlFromToken(token);
@@ -857,7 +823,6 @@ async function checkoutSupabase({ withTicket }) {
       saleId: sale.id,
       total: sale.total,
       url: lastReceiptUrl,
-      paymentRef: pmNeedsRef(pm) ? ref : ""
     });
 
   } catch (e) {
@@ -866,7 +831,9 @@ async function checkoutSupabase({ withTicket }) {
   }
 }
 
-/* ---------- Logout ---------- */
+/* =========================
+   LOGOUT
+========================= */
 function wireLogout() {
   confirmLogout?.addEventListener("click", async () => {
     try { await supabase.auth.signOut(); } catch {}
@@ -875,7 +842,9 @@ function wireLogout() {
   });
 }
 
-/* ---------- Events ---------- */
+/* =========================
+   EVENTS
+========================= */
 function wireEvents() {
   productSearch?.addEventListener("input", () => renderProducts(productSearch.value));
 
@@ -898,6 +867,7 @@ function wireEvents() {
       (p.sku || "").toLowerCase().includes(q) ||
       (p.barcode || "").toLowerCase() === q
     );
+
     if (!first) return setPosMsg("No encontré ese producto.");
 
     addToCart(first.id);
@@ -919,10 +889,8 @@ function wireEvents() {
   discountInput?.addEventListener("input", updateTotals);
   btnClearCart?.addEventListener("click", clearCart);
 
-  // ✅ cobrar (flow)
   btnCheckout?.addEventListener("click", openCheckoutFlow);
 
-  // ✅ modal ref -> continuar
   btnRefNext?.addEventListener("click", () => {
     const pm = pendingCheckout?.pm || normalizePaymentMethod(paymentMethod?.value || "cash");
     const ref = String(paymentRefModalInput?.value || "").trim();
@@ -938,7 +906,6 @@ function wireEvents() {
     openCheckoutChoice();
   });
 
-  // ✅ Enter en input modal ref
   paymentRefModalInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -946,7 +913,6 @@ function wireEvents() {
     }
   });
 
-  // choice buttons
   btnPayNoTicket?.addEventListener("click", async () => {
     bsModal(checkoutChoiceModalEl)?.hide();
     await checkoutSupabase({ withTicket: false });
@@ -960,7 +926,9 @@ function wireEvents() {
   wireLogout();
 }
 
-/* ---------- Init ---------- */
+/* =========================
+   INIT
+========================= */
 document.addEventListener("DOMContentLoaded", async () => {
   setupThemeBtn();
 
@@ -972,7 +940,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   renderBiz();
-
   await loadProducts();
 
   if (ctx.auth === "supabase") await loadSalesSB();

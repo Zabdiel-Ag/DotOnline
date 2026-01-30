@@ -1,63 +1,55 @@
 // JavaScript/Inventario.js
 import { supabase } from "./supabaseClient.js";
 
-/* =========================================================
-   INVENTARIO — DotLine (Conectado con POS)
-   ✅ Misma key de tema: dash_theme (sync entre páginas)
-   ✅ Misma key de productos: pos_products_v1 (mismo schema)
-   ✅ SKU automático + botón "mágico"
-   ✅ Código de barras + escaneo con cámara (HTML5)
-   ✅ Supabase CRUD opcional (si auth supabase)
-========================================================= */
-
 /* =========================
    THEME (igual que POS)
 ========================= */
 const THEME_KEY = "dash_theme";
-const BTN_THEME_ID = "btnTheme";
 
-function getSavedTheme() {
-  const t = localStorage.getItem(THEME_KEY);
-  return t === "light" ? "light" : "dark";
-}
-function applyTheme(theme) {
-  const t = theme === "light" ? "light" : "dark";
-  document.documentElement.setAttribute("data-bs-theme", t);
-  document.body?.classList.toggle("theme-light", t === "light");
+function setupTheme() {
+  const btn = document.getElementById("btnTheme");
+  if (!btn) return;
 
-  // pinta icono
-  const btn = document.getElementById(BTN_THEME_ID);
-  if (btn) {
-    const isLight = t === "light";
-    // (tu POS lo muestra “invertido”, yo lo dejo intuitivo: sol=light, luna=dark)
-    btn.innerHTML = isLight ? `<i class="bi bi-sun"></i>` : `<i class="bi bi-moon-stars"></i>`;
-    btn.title = isLight ? "Tema claro" : "Tema oscuro";
-    btn.setAttribute("aria-label", btn.title);
+  const root = document.documentElement;
+
+  function paintIcon(theme) {
+    const isLight = theme === "light";
+    btn.innerHTML = isLight
+      ? '<i class="bi bi-moon-stars"></i>'
+      : '<i class="bi bi-sun"></i>';
   }
-}
-function toggleTheme() {
-  const next = getSavedTheme() === "light" ? "dark" : "light";
-  localStorage.setItem(THEME_KEY, next);
-  applyTheme(next);
-}
-function wireTheme() {
-  applyTheme(getSavedTheme());
 
-  // event delegation (sirve aunque el botón se renderice después)
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest(`#${BTN_THEME_ID}`);
-    if (!btn) return;
+  function applyTheme(theme) {
+    const t = theme === "light" ? "light" : "dark";
+    root.setAttribute("data-bs-theme", t);
+    document.body.classList.toggle("theme-light", t === "light");
+    localStorage.setItem(THEME_KEY, t);
+    paintIcon(t);
+  }
+
+  const current = localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+  applyTheme(current); // ✅ aplica + pinta icon al cargar
+
+  btn.addEventListener("click", (e) => {
     e.preventDefault();
-    toggleTheme();
+    const now = localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+    applyTheme(now === "light" ? "dark" : "light");
   });
+}
 
-  // sync entre pestañas
-  window.addEventListener("storage", (e) => {
-    if (e.key === THEME_KEY) applyTheme(getSavedTheme());
+/* =========================
+   UUID fallback
+========================= */
+function uuid() {
+  try {
+    if (crypto?.randomUUID) return crypto.randomUUID();
+  } catch {}
+  // fallback simple
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
   });
-
-  // bfcache
-  window.addEventListener("pageshow", () => applyTheme(getSavedTheme()));
 }
 
 /* =========================
@@ -66,23 +58,36 @@ function wireTheme() {
 const SESSION_KEY = "pos_session";
 const USERS_KEY = "pos_users";
 const BUSINESSES_KEY = "pos_businesses";
-const PRODUCTS_KEY = "pos_products_v1"; // ✅ MISMA key que POS
+const PRODUCTS_KEY = "pos_products_v1";
 
 /* =========================
    Storage utils (local)
 ========================= */
 function jget(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
-  catch { return fallback; }
+  try {
+    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
-function jset(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function jset(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
 
-function getSession() { return jget(SESSION_KEY, null); }
-function clearSession() { localStorage.removeItem(SESSION_KEY); }
-function getUsers() { return jget(USERS_KEY, []); }
-function getBusinessesLocal() { return jget(BUSINESSES_KEY, []); }
+function getSession() {
+  return jget(SESSION_KEY, null);
+}
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+function getUsers() {
+  return jget(USERS_KEY, []);
+}
+function getBusinessesLocal() {
+  return jget(BUSINESSES_KEY, []);
+}
 function getBusinessByOwnerLocal(userId) {
-  return getBusinessesLocal().find(b => b.ownerUserId === userId) || null;
+  return getBusinessesLocal().find((b) => b.ownerUserId === userId) || null;
 }
 
 /* =========================
@@ -108,10 +113,14 @@ async function requireAuthOrRedirect() {
 
     if (sbUser && !error) {
       let biz = null;
-      try { biz = await getMyFirstBusinessSB(); } catch (e) { console.error("getMyFirstBusinessSB:", e); }
+      try {
+        biz = await getMyFirstBusinessSB();
+      } catch (e) {
+        console.error("getMyFirstBusinessSB:", e);
+      }
 
       const localMatch = getUsers().find(
-        u => (u.email || "").toLowerCase() === (sbUser.email || "").toLowerCase()
+        (u) => (u.email || "").toLowerCase() === (sbUser.email || "").toLowerCase()
       );
 
       return {
@@ -136,27 +145,33 @@ async function requireAuthOrRedirect() {
 
   // 2) Local fallback
   const s = getSession();
-  if (!s?.userId) { window.location.href = "Index.html"; return null; }
+  if (!s?.userId) {
+    window.location.href = "Index.html";
+    return null;
+  }
 
-  const u = getUsers().find(x => x.id === s.userId);
-  if (!u) { clearSession(); window.location.href = "Index.html"; return null; }
+  const u = getUsers().find((x) => x.id === s.userId);
+  if (!u) {
+    clearSession();
+    window.location.href = "Index.html";
+    return null;
+  }
 
   const biz = getBusinessByOwnerLocal(s.userId);
-  if (!biz) { window.location.href = "Index.html"; return null; }
+  if (!biz) {
+    window.location.href = "Index.html";
+    return null;
+  }
 
   return { user: u, biz, auth: "local" };
 }
 
 /* =========================
    Products local schema (igual POS)
-   POS usa:
-   { id, bizId, name, sku, unit, price, stock, trackStock, image_url, image_path, createdAt, updatedAt, barcode? }
 ========================= */
 function normalizeProductLocal(p) {
   if (!p) return p;
-  // compat legacy
   if (!p.bizId && p.businessId) p.bizId = p.businessId;
-  // compat tu inventario viejo
   if (p.imageUrl && !p.image_url) p.image_url = p.imageUrl;
   if (p.imagePath && !p.image_path) p.image_path = p.imagePath;
   return p;
@@ -168,15 +183,11 @@ function saveAllProductsLocal(all) {
   jset(PRODUCTS_KEY, all);
 }
 function getProductsByBizLocal(bizId) {
-  return getAllProductsLocal().filter(p => p.bizId === bizId);
+  return getAllProductsLocal().filter((p) => p.bizId === bizId);
 }
 
 /* =========================
    Supabase PRODUCTS (CRUD)
-   - Tabla: products
-   - Campos recomendados:
-     id, business_id, sku, barcode, name, description, unit, price, cost, stock,
-     min_stock, is_active, image_url, created_at, updated_at
 ========================= */
 function extractCategoryFromDescription(desc) {
   const s = String(desc || "").trim();
@@ -198,9 +209,9 @@ function mapRowToProduct(row) {
     unit: row.unit || "pz",
     price: Number(row.price || 0),
     stock: Number(row.stock || 0),
-    trackStock: true,                 // tu POS maneja trackStock en local; en SB lo dejamos true
+    trackStock: true,
     image_url: row.image_url || "",
-    image_path: "",                   // opcional en SB
+    image_path: "",
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
   };
@@ -262,12 +273,12 @@ async function clearAllProductsSB(businessId) {
 }
 async function seedDemoSB(businessId) {
   const demo = [
-    { id: crypto.randomUUID(), name: "Coca 600ml", sku: "COCA-600", barcode: "7501055300102", category: "Bebidas", unit: "pieza", price: 20, stock: 30 },
-    { id: crypto.randomUUID(), name: "Sabritas", sku: "SAB-45", barcode: "7501011111111", category: "Snacks", unit: "pieza", price: 18, stock: 25 },
-    { id: crypto.randomUUID(), name: "Pan dulce", sku: "PAN-01", barcode: "", category: "Panadería", unit: "pieza", price: 12, stock: 40 },
+    { id: uuid(), name: "Coca 600ml", sku: "COCA-600", barcode: "7501055300102", category: "Bebidas", unit: "pieza", price: 20, stock: 30 },
+    { id: uuid(), name: "Sabritas", sku: "SAB-45", barcode: "7501011111111", category: "Snacks", unit: "pieza", price: 18, stock: 25 },
+    { id: uuid(), name: "Pan dulce", sku: "PAN-01", barcode: "", category: "Panadería", unit: "pieza", price: 12, stock: 40 },
   ];
 
-  const rows = demo.map(p => {
+  const rows = demo.map((p) => {
     const r = mapProductToRow({ ...p, image_url: "" }, businessId);
     r.id = p.id;
     return r;
@@ -303,7 +314,6 @@ async function uploadProductImageSB({ businessId, productId, file }) {
   if (upErr) throw upErr;
 
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  // cache-bust para que refresque inmediato
   return data?.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
 }
 
@@ -324,14 +334,14 @@ const formTitle = document.getElementById("formTitle");
 
 const pName = document.getElementById("pName");
 const pSku = document.getElementById("pSku");
-const pBarcode = document.getElementById("pBarcode");       // ✅ nuevo
+const pBarcode = document.getElementById("pBarcode");
 const pCategory = document.getElementById("pCategory");
 const pPrice = document.getElementById("pPrice");
 const pStock = document.getElementById("pStock");
 const pUnit = document.getElementById("pUnit");
 
-const btnGenSku = document.getElementById("btnGenSku");     // ✅ botón mágico SKU
-const btnScanBarcode = document.getElementById("btnScanBarcode"); // ✅ botón escaneo
+const btnGenSku = document.getElementById("btnGenSku");
+const btnScanBarcode = document.getElementById("btnScanBarcode");
 
 const pImage = document.getElementById("pImage");
 const pImagePreview = document.getElementById("pImagePreview");
@@ -357,11 +367,9 @@ let ctx = null;
 let products = [];
 let editingId = null;
 
-// imagen actual (si estás editando)
 let editingImageUrl = "";
 let editingImagePath = "";
 
-// SKU auto state
 let skuTouched = false;
 
 /* =========================
@@ -410,7 +418,7 @@ function randomBase36(len = 4) {
 }
 function skuExistsInBiz(sku) {
   const s = String(sku || "").trim().toLowerCase();
-  return products.some(p => (p.sku || "").trim().toLowerCase() === s);
+  return products.some((p) => (p.sku || "").trim().toLowerCase() === s);
 }
 function generateSkuFromName(name) {
   const base = sanitizeSkuPart(name).slice(0, 16) || "PROD";
@@ -428,22 +436,17 @@ function generateUniqueSku(name) {
 function setSkuValue(nextSku) {
   if (!pSku) return;
   pSku.value = nextSku || "";
-  // no marcamos touched aquí; touched se marca cuando el usuario escribe en sku
 }
 
-/* ✅ autoSKU real */
 function wireSkuAuto() {
   if (!pName || !pSku) return;
 
-  // 1) Detectar si el usuario tocó SKU manualmente
   skuTouched = false;
 
   pSku.addEventListener("input", () => {
-    // si el user escribe o borra manualmente, ya es "touched"
     skuTouched = true;
   });
 
-  // 2) Cuando escribe nombre, si SKU no fue tocado -> generar
   pName.addEventListener("input", () => {
     if (skuTouched) return;
     const n = (pName.value || "").trim();
@@ -451,15 +454,11 @@ function wireSkuAuto() {
     setSkuValue(generateUniqueSku(n));
   });
 
-  // 3) Botón mágico: siempre genera uno nuevo (pero NO marca touched)
   btnGenSku?.addEventListener("click", () => {
     const n = (pName?.value || "").trim();
     setSkuValue(generateUniqueSku(n));
-    // después de generar con botón, seguimos permitiendo auto si no lo tocó el user:
-    // NO cambiamos skuTouched
   });
 
-  // 4) Init: si ya hay nombre y SKU vacío -> generar
   const initName = (pName.value || "").trim();
   const initSku = (pSku.value || "").trim();
   if (initName && !initSku) setSkuValue(generateUniqueSku(initName));
@@ -526,7 +525,10 @@ function renderBrandHeader() {
    Load Products
 ========================= */
 async function loadProducts() {
-  if (!ctx?.biz?.id) { products = []; return; }
+  if (!ctx?.biz?.id) {
+    products = [];
+    return;
+  }
 
   if (ctx.auth === "supabase") {
     try {
@@ -534,7 +536,6 @@ async function loadProducts() {
       return;
     } catch (e) {
       console.error("fetchProductsSB error:", e);
-      // fallback a local para no dejarte en blanco
       products = getProductsByBizLocal(ctx.biz.id);
       showError("No pude cargar desde Supabase. Mostrando datos locales. Revisa RLS/políticas.");
       return;
@@ -564,7 +565,9 @@ function renderTable(filter = "") {
 
   if (!productsTbody) return;
 
-  productsTbody.innerHTML = list.map((p) => `
+  productsTbody.innerHTML = list
+    .map(
+      (p) => `
     <tr>
       <td>
         <div class="d-flex align-items-center gap-2">
@@ -584,7 +587,9 @@ function renderTable(filter = "") {
         <button class="btn btn-outline-light btn-sm" data-act="edit" data-id="${p.id}">Editar</button>
       </td>
     </tr>
-  `).join("");
+  `
+    )
+    .join("");
 }
 
 /* =========================
@@ -630,14 +635,13 @@ function readForm() {
   if (!Number.isFinite(price) || price < 0) return { ok: false, msg: "Precio inválido." };
   if (!Number.isFinite(stock) || stock < 0) return { ok: false, msg: "Stock inválido." };
 
-  // si SKU está vacío -> auto (aunque no haya tocado)
   let finalSku = sku;
   if (!finalSku) finalSku = generateUniqueSku(name);
 
   return {
     ok: true,
     product: {
-      id: editingId || crypto.randomUUID(),
+      id: editingId || uuid(),
       bizId: ctx.biz.id,
       name,
       sku: finalSku,
@@ -665,7 +669,6 @@ async function upsertProduct() {
   const p = r.product;
   const file = pImage?.files?.[0] || null;
 
-  // si hay imagen nueva y estamos con Supabase -> subir y guardar url
   if (ctx.auth === "supabase") {
     try {
       if (file) {
@@ -690,7 +693,6 @@ async function upsertProduct() {
     }
   }
 
-  // LOCAL (conectado con POS)
   const all = getAllProductsLocal();
 
   if (!editingId) {
@@ -711,7 +713,7 @@ async function upsertProduct() {
       updatedAt: new Date().toISOString(),
     });
   } else {
-    const idx = all.findIndex(x => x.id === editingId && (x.bizId === ctx.biz.id || x.businessId === ctx.biz.id));
+    const idx = all.findIndex((x) => x.id === editingId && (x.bizId === ctx.biz.id || x.businessId === ctx.biz.id));
     if (idx === -1) return showError("No encontré ese producto para editar.");
 
     const prev = normalizeProductLocal(all[idx]);
@@ -740,11 +742,11 @@ async function upsertProduct() {
 }
 
 function loadToForm(id) {
-  const p = products.find(x => x.id === id);
+  const p = products.find((x) => x.id === id);
   if (!p) return;
 
   editingId = id;
-  skuTouched = true; // al cargar en edit, asumimos SKU ya está definido
+  skuTouched = true;
   hideError();
 
   if (formTitle) formTitle.textContent = "Editar producto";
@@ -769,7 +771,7 @@ function loadToForm(id) {
 async function deleteProduct() {
   if (!editingId) return;
 
-  const p = products.find(x => x.id === editingId);
+  const p = products.find((x) => x.id === editingId);
   if (!p) return;
 
   if (!confirm(`¿Eliminar "${p.name}"?`)) return;
@@ -787,7 +789,7 @@ async function deleteProduct() {
     }
   }
 
-  const all = getAllProductsLocal().filter(x => !(x.id === editingId && x.bizId === ctx.biz.id));
+  const all = getAllProductsLocal().filter((x) => !(x.id === editingId && x.bizId === ctx.biz.id));
   saveAllProductsLocal(all);
 
   await loadProducts();
@@ -820,7 +822,7 @@ async function seedDemo() {
 
   for (const d of demo) {
     all.push({
-      id: crypto.randomUUID(),
+      id: uuid(),
       bizId: ctx.biz.id,
       ...d,
       trackStock: true,
@@ -854,7 +856,7 @@ async function clearAll() {
     }
   }
 
-  const all = getAllProductsLocal().filter(p => p.bizId !== ctx.biz.id);
+  const all = getAllProductsLocal().filter((p) => p.bizId !== ctx.biz.id);
   saveAllProductsLocal(all);
 
   await loadProducts();
@@ -867,27 +869,30 @@ async function clearAll() {
 ========================= */
 function wireLogout() {
   const doLogout = async () => {
-    try { await supabase.auth.signOut(); } catch {}
+    try {
+      await supabase.auth.signOut();
+    } catch {}
     clearSession();
     window.location.href = "Index.html";
   };
 
   confirmLogoutBtn?.addEventListener("click", async () => {
     await doLogout();
-    try { logoutModal?.hide(); } catch {}
+    try {
+      logoutModal?.hide();
+    } catch {}
   });
 }
 
 /* =========================
    ✅ Barcode Scan (HTML5 camera)
-   - Carga html5-qrcode on-demand
 ========================= */
 const BARCODE_CDN = "https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js";
 
 function loadScriptOnce(src) {
   return new Promise((resolve, reject) => {
     if (window.Html5Qrcode) return resolve();
-    const existing = [...document.scripts].some(s => s.src && s.src.includes(src));
+    const existing = [...document.scripts].some((s) => s.src && s.src.includes(src));
     if (existing) return resolve();
 
     const s = document.createElement("script");
@@ -932,58 +937,67 @@ async function startBarcodeScanner() {
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   modal.show();
 
-  modalEl.addEventListener("shown.bs.modal", async () => {
-    try {
+  modalEl.addEventListener(
+    "shown.bs.modal",
+    async () => {
+      try {
+        const reader = document.getElementById(readerId);
+        if (reader) reader.innerHTML = "";
+
+        scanner = new Html5Qrcode(readerId);
+
+        const config = {
+          fps: 12,
+          qrbox: { width: 280, height: 160 },
+          aspectRatio: 1.777,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        };
+
+        await scanner.start(
+          { facingMode: "environment" },
+          config,
+          (decodedText) => {
+            const val = String(decodedText || "").trim();
+            if (!val) return;
+
+            pBarcode.value = val;
+            pBarcode.dispatchEvent(new Event("input", { bubbles: true }));
+
+            if (pSku && !(pSku.value || "").trim()) {
+              pSku.value = val;
+              skuTouched = true;
+            }
+
+            try {
+              bootstrap.Modal.getInstance(modalEl)?.hide();
+            } catch {}
+          },
+          () => {}
+        );
+      } catch (e) {
+        console.error("scanner start error:", e);
+        showScanError("No pude iniciar la cámara. Activa permisos y usa HTTPS.");
+      }
+    },
+    { once: true }
+  );
+
+  modalEl.addEventListener(
+    "hidden.bs.modal",
+    async () => {
+      try {
+        if (scanner) {
+          await scanner.stop();
+          await scanner.clear();
+        }
+      } catch {}
+      scanner = null;
+
       const reader = document.getElementById(readerId);
       if (reader) reader.innerHTML = "";
-
-      scanner = new Html5Qrcode(readerId);
-
-      const config = {
-        fps: 12,
-        qrbox: { width: 280, height: 160 },
-        aspectRatio: 1.777,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-      };
-
-      await scanner.start(
-        { facingMode: "environment" },
-        config,
-        (decodedText) => {
-          const val = String(decodedText || "").trim();
-          if (!val) return;
-
-          pBarcode.value = val;
-          pBarcode.dispatchEvent(new Event("input", { bubbles: true }));
-
-          // opcional: si SKU está vacío, lo ponemos igual al barcode
-          if (pSku && !(pSku.value || "").trim()) {
-            pSku.value = val;
-            skuTouched = true;
-          }
-
-          try { bootstrap.Modal.getInstance(modalEl)?.hide(); } catch {}
-        },
-        () => {}
-      );
-    } catch (e) {
-      console.error("scanner start error:", e);
-      showScanError("No pude iniciar la cámara. Activa permisos y usa HTTPS.");
-    }
-  }, { once: true });
-
-  modalEl.addEventListener("hidden.bs.modal", async () => {
-    try {
-      if (scanner) {
-        await scanner.stop();
-        await scanner.clear();
-      }
-    } catch {}
-    scanner = null;
-
-    const reader = document.getElementById(readerId);
-    if (reader) reader.innerHTML = "";
-  }, { once: true });
+    },
+    { once: true }
+  );
 }
 
 function wireBarcodeScanner() {
@@ -995,37 +1009,41 @@ function wireBarcodeScanner() {
 
 /* =========================
    Sync con POS (mismo localStorage)
-   - Si POS modifica productos, aquí refrescamos
 ========================= */
 function wireProductsSyncWithPOS() {
   window.addEventListener("storage", async (e) => {
     if (e.key !== PRODUCTS_KEY) return;
     if (!ctx?.biz?.id) return;
 
-    // refresca desde local (rápido)
     if (ctx.auth !== "supabase") {
       products = getProductsByBizLocal(ctx.biz.id);
       renderTable(searchInput?.value || "");
       return;
     }
 
-    // en supabase, igual refrescamos (por si también estás trabajando SB)
     await loadProducts();
     renderTable(searchInput?.value || "");
   });
 }
 
 /* =========================
-   Init
+   Init ✅ (CORREGIDO)
 ========================= */
 document.addEventListener("DOMContentLoaded", async () => {
-  wireTheme();
+  // ✅ antes tronaba por setupThemeBtn() (no existía)
+  try {
+    setupTheme();
+  } catch (e) {
+    console.error("Theme init error:", e);
+  }
 
   ctx = await requireAuthOrRedirect();
   if (!ctx) return;
 
   if (ctx.auth === "supabase" && !ctx.biz?.id) {
-    try { ctx.biz = await getMyFirstBusinessSB(); } catch {}
+    try {
+      ctx.biz = await getMyFirstBusinessSB();
+    } catch {}
   }
 
   if (!ctx?.biz?.id) {
@@ -1035,9 +1053,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   renderBrandHeader();
 
-  // wires
-  wireSkuAuto();          
-  wireBarcodeScanner();   
+  wireSkuAuto();
+  wireBarcodeScanner();
   wireImagePreview();
   wireLogout();
   wireProductsSyncWithPOS();

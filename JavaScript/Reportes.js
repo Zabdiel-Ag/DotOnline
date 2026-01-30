@@ -1,46 +1,18 @@
-const SESSION_KEY = "pos_session";
-const USERS_KEY = "pos_users";
-const BUSINESSES_KEY = "pos_businesses";
+import { supabase } from "./supabaseClient.js";
 
-// ✅ IMPORTANTE: faltaba esta constante
-const SALES_KEY = "pos_sales_v1";
-
-// (no lo usas aquí, pero no estorba tenerlo)
-const PRODUCTS_KEY = "pos_products_v1";
-
-function jget(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
-  catch { return fallback; }
-}
-function getSession() { return jget(SESSION_KEY, null); }
-function clearSession() { localStorage.removeItem(SESSION_KEY); }
-function getUsers() { return jget(USERS_KEY, []); }
-function getBusinesses() { return jget(BUSINESSES_KEY, []); }
-function getSales() { return jget(SALES_KEY, []).map(normalizeSale); }
-
-// ✅ compat: ventas nuevas usan bizId, viejas businessId
-function normalizeSale(s) {
-  if (!s) return s;
-  if (!s.bizId && s.businessId) s.bizId = s.businessId;
-  return s;
+/* =========================
+   Helpers
+========================= */
+function money(n, currency = "MXN") {
+  const val = Number(n || 0);
+  try {
+    return val.toLocaleString("es-MX", { style: "currency", currency });
+  } catch {
+    return val.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+  }
 }
 
-function requireBizOrRedirect() {
-  const s = getSession();
-  if (!s?.userId) { window.location.href = "Index.html"; return null; }
 
-  const u = getUsers().find(x => x.id === s.userId);
-  if (!u) { clearSession(); window.location.href = "Index.html"; return null; }
-
-  const biz = getBusinesses().find(b => b.ownerUserId === s.userId);
-  if (!biz) { window.location.href = "Index.html"; return null; }
-
-  return { user: u, biz };
-}
-
-function money(n) {
-  return Number(n || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-}
 
 function ymdLocal(date) {
   const d = new Date(date);
@@ -55,20 +27,60 @@ function parseYMD(s) {
   return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
-function inRange(dateISO, fromYMD, toYMD) {
-  const d = new Date(dateISO);
-  const from = fromYMD ? parseYMD(fromYMD) : null;
-  const to = toYMD ? new Date(parseYMD(toYMD).getTime() + 24 * 60 * 60 * 1000 - 1) : null;
-  if (from && d < from) return false;
-  if (to && d > to) return false;
-  return true;
+function startISOFromYMD(ymd) {
+  return parseYMD(ymd).toISOString();
 }
 
-// ===== Charts state =====
+function endISOFromYMDInclusive(ymd) {
+  // fin inclusivo => usamos < nextDayStart
+  const d = parseYMD(ymd);
+  const next = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+  return next.toISOString();
+}
+
+function shortId(uuid) {
+  try { return String(uuid).split("-")[0].toUpperCase(); }
+  catch { return String(uuid || ""); }
+}
+
+/* =========================
+   Header (empresa + logo)
+   - usa ids del HTML DotLine:
+     #brandNameText, #brandLogoImg, #bizLabel
+========================= */
+function renderBizHeader(biz) {
+  const brandNameText = document.getElementById("brandNameText");
+  const brandLogoImg = document.getElementById("brandLogoImg");
+  const bizLabel = document.getElementById("bizLabel");
+
+  const name = biz?.name || "DotLine";
+  const handle = biz?.handle ? `@${biz.handle}` : "@negocio";
+
+  if (brandNameText) brandNameText.textContent = name;
+
+  // logo_url si existe
+  const logoUrl = biz?.logo_url || "";
+  if (brandLogoImg) {
+    if (logoUrl) {
+      brandLogoImg.src = logoUrl;
+      brandLogoImg.classList.remove("d-none");
+    } else {
+      brandLogoImg.classList.add("d-none");
+    }
+  }
+
+  if (bizLabel) bizLabel.textContent = `${name} — ${handle}`;
+}
+
+/* =========================
+   Charts state
+========================= */
 let chartDaily = null, chartMethods = null, chartTop = null, chartEmp = null;
 function destroyChart(c) { if (c && typeof c.destroy === "function") c.destroy(); }
 
-// ===== Aggregations =====
+/* =========================
+   Aggregations
+========================= */
 function groupByDay(sales) {
   const map = new Map();
   for (const s of sales) {
@@ -82,10 +94,15 @@ function groupByDay(sales) {
 function groupByMethod(sales) {
   const map = new Map();
   for (const s of sales) {
-    const m = (s.method || "Efectivo").trim();
+    const m = String(s.method || "cash").trim();
     map.set(m, (map.get(m) || 0) + Number(s.total || 0));
   }
   const labels = [...map.keys()];
+
+  // opcional: orden bonito
+  const order = ["cash", "card", "transfer", "mixed"];
+  labels.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+
   return { labels, values: labels.map(l => map.get(l) || 0) };
 }
 
@@ -104,7 +121,9 @@ function topProducts(sales, topN = 7) {
 function employeePerf(sales) {
   const map = new Map();
   for (const s of sales) {
-    const emp = s.employeeName || "Sin asignar";
+    // si no hay profiles, usamos created_by como "empleado"
+    const emp = s.employeeName || (s.createdBy ? `Emp ${shortId(s.createdBy)}` : "Sin asignar");
+
     const rec = map.get(emp) || { sales: 0, income: 0, items: 0 };
     rec.sales += 1;
     rec.income += Number(s.total || 0);
@@ -120,20 +139,22 @@ function projection30(dailyValues) {
   return avg * 30;
 }
 
-// ===== Render =====
-function setKpis({ income, salesCount, avgTicket, proj30 }) {
+/* =========================
+   Render
+========================= */
+function setKpis({ income, salesCount, avgTicket, proj30, currency }) {
   const elIncome = document.getElementById("kpiIncome");
   const elSales = document.getElementById("kpiSales");
   const elAvg = document.getElementById("kpiAvg");
   const elProj = document.getElementById("kpiProjection");
 
-  if (elIncome) elIncome.textContent = money(income);
+  if (elIncome) elIncome.textContent = money(income, currency);
   if (elSales) elSales.textContent = String(salesCount);
-  if (elAvg) elAvg.textContent = money(avgTicket);
-  if (elProj) elProj.textContent = money(proj30);
+  if (elAvg) elAvg.textContent = money(avgTicket, currency);
+  if (elProj) elProj.textContent = money(proj30, currency);
 }
 
-function renderEmployeesTable(empArr) {
+function renderEmployeesTable(empArr, currency = "MXN") {
   const tb = document.getElementById("employeesTable");
   if (!tb) return;
 
@@ -148,15 +169,14 @@ function renderEmployeesTable(empArr) {
       <tr>
         <td>${name}</td>
         <td class="text-end">${r.sales}</td>
-        <td class="text-end">${money(r.income)}</td>
-        <td class="text-end">${money(avg)}</td>
+        <td class="text-end">${money(r.income, currency)}</td>
+        <td class="text-end">${money(avg, currency)}</td>
       </tr>
     `;
   }).join("");
 }
 
 function renderCharts(daily, methods, top, empArr) {
-  // Si no cargaste Chart.js en el HTML, no habrá gráficas
   if (!window.Chart) return;
 
   const ctxDaily = document.getElementById("chartDaily");
@@ -195,39 +215,139 @@ function renderCharts(daily, methods, top, empArr) {
   });
 }
 
-function applyFilters(allSales, bizId) {
-  const from = document.getElementById("fromDate")?.value || "";
-  const to = document.getElementById("toDate")?.value || "";
-  const method = document.getElementById("methodFilter")?.value || "";
+/* =========================
+   Supabase: Auth + Business + Sales
+========================= */
+async function requireAuthAndBusinessOrRedirect() {
+  const { data, error } = await supabase.auth.getUser();
+  const user = data?.user;
 
-  return allSales
-    // ✅ CAMBIO CLAVE: filtrar por bizId (compat con businessId ya normalizado)
-    .filter(s => s.bizId === bizId)
-    .filter(s => inRange(s.createdAt, from, to))
-    .filter(s => !method || (s.method || "Efectivo") === method);
+  if (error || !user) {
+    window.location.href = "Index.html";
+    return null;
+  }
+
+  // negocio por owner_id (si manejas multi-negocio, aquí puedes seleccionar uno)
+  const { data: biz, error: bizErr } = await supabase
+    .from("businesses")
+    .select("id, name, handle, timezone, currency, owner_id, created_at, logo_url")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (bizErr || !biz) {
+    console.error("biz error:", bizErr);
+    window.location.href = "Index.html";
+    return null;
+  }
+
+  return {
+    user: { id: user.id, email: user.email },
+    biz
+  };
 }
 
-function renderAll(state) {
-  const bizLabel = document.getElementById("bizLabel");
-  if (bizLabel) bizLabel.textContent = `${state.biz.name} — @${state.biz.handle}`;
+function getFilters() {
+  const from = document.getElementById("fromDate")?.value || "";
+  const to = document.getElementById("toDate")?.value || "";
+  const method = document.getElementById("methodFilter")?.value || ""; // cash/card/transfer/mixed
+  return { from, to, method };
+}
 
-  const all = getSales();
-  const filtered = applyFilters(all, state.biz.id);
+async function fetchSalesFromSupabase({ bizId, fromYMD, toYMD, method }) {
+  const startISO = fromYMD ? startISOFromYMD(fromYMD) : null;
+  const endISO = toYMD ? endISOFromYMDInclusive(toYMD) : null;
 
-  const income = filtered.reduce((a, s) => a + Number(s.total || 0), 0);
-  const salesCount = filtered.length;
+  let q = supabase
+    .from("sales")
+    .select(`
+      id,
+      business_id,
+      created_at,
+      created_by,
+      payment_method,
+      total,
+      subtotal,
+      discount,
+      note,
+      sale_items (
+        id,
+        product_id,
+        name,
+        qty,
+        unit_price,
+        line_total
+      )
+    `)
+    .eq("business_id", bizId)
+    .order("created_at", { ascending: true });
+
+  if (startISO) q = q.gte("created_at", startISO);
+  if (endISO) q = q.lt("created_at", endISO);
+  if (method) q = q.eq("payment_method", method);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  return (data || []).map(s => ({
+    id: s.id,
+    bizId: s.business_id,
+    createdAt: s.created_at,
+    createdBy: s.created_by,
+    method: s.payment_method || "cash",
+    total: Number(s.total || 0),
+    items: (s.sale_items || []).map(it => ({
+      productId: it.product_id,
+      name: it.name,
+      qty: Number(it.qty || 0),
+      unit_price: Number(it.unit_price || 0),
+      line_total: Number(it.line_total || 0),
+    })),
+  }));
+}
+
+/* =========================
+   Main render pipeline
+========================= */
+async function renderAll(state) {
+  renderBizHeader(state.biz);
+
+  const { from, to, method } = getFilters();
+
+  const hint = document.getElementById("salesHint");
+  if (hint) hint.textContent = "Cargando ventas...";
+
+  let sales = [];
+  try {
+    sales = await fetchSalesFromSupabase({
+      bizId: state.biz.id,
+      fromYMD: from,
+      toYMD: to,
+      method
+    });
+    if (hint) hint.textContent = "Historial filtrado ✅";
+  } catch (e) {
+    console.error("fetchSales error:", e);
+    if (hint) hint.textContent = "Error al cargar ventas (revisa RLS/permisos).";
+    sales = [];
+  }
+
+  const currency = state.biz.currency || "MXN";
+
+  const income = sales.reduce((a, s) => a + Number(s.total || 0), 0);
+  const salesCount = sales.length;
   const avgTicket = salesCount ? income / salesCount : 0;
 
-  const daily = groupByDay(filtered);
-  const methods = groupByMethod(filtered);
-  const top = topProducts(filtered, 7);
-  const empArr = employeePerf(filtered);
-
+  const daily = groupByDay(sales);
+  const methods = groupByMethod(sales);
+  const top = topProducts(sales, 7);
+  const empArr = employeePerf(sales);
   const proj30 = projection30(daily.values);
 
-  setKpis({ income, salesCount, avgTicket, proj30 });
+  setKpis({ income, salesCount, avgTicket, proj30, currency });
   renderCharts(daily, methods, top, empArr);
-  renderEmployeesTable(empArr);
+  renderEmployeesTable(empArr, currency);
 }
 
 function setDefaultDates() {
@@ -242,11 +362,15 @@ function setDefaultDates() {
     return `${y}-${m}-${day}`;
   };
 
-  document.getElementById("fromDate") && (document.getElementById("fromDate").value = fmt(from));
-  document.getElementById("toDate") && (document.getElementById("toDate").value = fmt(to));
+  const elFrom = document.getElementById("fromDate");
+  const elTo = document.getElementById("toDate");
+  if (elFrom) elFrom.value = fmt(from);
+  if (elTo) elTo.value = fmt(to);
 }
 
-// ===== Logout modal =====
+/* =========================
+   Logout
+========================= */
 function wireLogoutReportes() {
   const btn = document.getElementById("btnLogoutRep");
   const modalEl = document.getElementById("logoutModal");
@@ -254,39 +378,54 @@ function wireLogoutReportes() {
 
   if (!btn) return;
 
+  async function doLogout() {
+    try { await supabase.auth.signOut(); } catch {}
+    window.location.href = "Index.html";
+  }
+
   if (!modalEl || !window.bootstrap?.Modal) {
-    btn.addEventListener("click", () => {
-      if (confirm("¿Seguro que deseas cerrar sesión?")) {
-        clearSession();
-        window.location.href = "Index.html";
-      }
+    btn.addEventListener("click", async () => {
+      if (confirm("¿Seguro que deseas cerrar sesión?")) await doLogout();
     });
     return;
   }
 
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   btn.addEventListener("click", () => modal.show());
-  confirmBtn?.addEventListener("click", () => {
-    clearSession();
-    window.location.href = "Index.html";
+  confirmBtn?.addEventListener("click", async () => {
+    modal.hide();
+    await doLogout();
   });
 }
 
-// ===== INIT =====
-document.addEventListener("DOMContentLoaded", () => {
-  const state = requireBizOrRedirect();
+/* =========================
+   INIT
+========================= */
+document.addEventListener("DOMContentLoaded", async () => {
+  const state = await requireAuthAndBusinessOrRedirect();
   if (!state) return;
 
-  setDefaultDates();
-  renderAll(state);
 
-  document.getElementById("btnApply")?.addEventListener("click", () => renderAll(state));
-  document.getElementById("btnReset")?.addEventListener("click", () => {
+
+  setDefaultDates();
+  await renderAll(state);
+
+  document.getElementById("btnApply")?.addEventListener("click", async () => {
+    await renderAll(state);
+  });
+
+  document.getElementById("btnReset")?.addEventListener("click", async () => {
     const mf = document.getElementById("methodFilter");
     if (mf) mf.value = "";
     setDefaultDates();
-    renderAll(state);
+    await renderAll(state);
   });
 
   wireLogoutReportes();
+
+     document.addEventListener("DOMContentLoaded", () => {
+      const btnD = document.getElementById("btnTheme");
+      const btnM = document.getElementById("btnTheme_m");
+      if (btnD && btnM) btnM.addEventListener("click", () => btnD.click());
+    });
 });

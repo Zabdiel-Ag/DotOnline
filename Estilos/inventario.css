@@ -412,3 +412,47 @@
     background: rgba(255,255,255,.12);
   }
 }
+
+
+/* =========================================================
+   ✅ FIX FUERTE: Light mode legible en TODO Inventario
+   (evita letras blancas / muted raros / labels invisibles)
+========================================================= */
+:root[data-bs-theme="light"] .dash-body,
+:root[data-bs-theme="light"] body{
+  color: var(--ltTxt);
+}
+
+/* muted global dentro de inventario */
+:root[data-bs-theme="light"] .muted,
+:root[data-bs-theme="light"] .inv-sub,
+:root[data-bs-theme="light"] .inv-imghint{
+  color: rgba(20,25,35,.62) !important;
+}
+
+/* labels y textos de ayuda */
+:root[data-bs-theme="light"] .form-label,
+:root[data-bs-theme="light"] label{
+  color: rgba(20,25,35,.72) !important;
+}
+
+/* botones icon / topbar (cuando uses btn-icon del dashboard) */
+:root[data-bs-theme="light"] .btn.btn-icon{
+  color: rgba(20,25,35,.85) !important;
+}
+
+/* placeholders */
+:root[data-bs-theme="light"] .inv-search input::placeholder,
+:root[data-bs-theme="light"] .inv-form .form-control::placeholder{
+  color: rgba(20,25,35,.38) !important;
+}
+
+/* tabla: asegura contraste */
+:root[data-bs-theme="light"] .inv-table tbody td{
+  color: rgba(20,25,35,.92) !important;
+}
+
+/* si se cuela text-white por bootstrap */
+:root[data-bs-theme="light"] .text-white{
+  color: rgba(20,25,35,.92) !important;
+}

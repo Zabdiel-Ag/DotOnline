@@ -1,22 +1,18 @@
 // JavaScript/boot.js
-
 (() => {
   const LOGO_URL = "Multimedia/logo.png";
   const THEME_KEY = "appTheme";
   const root = document.documentElement;
 
-  // 1) Asegurar que el loader use el tema actual desde el inicio (sin cambiarlo)
+  // ✅ SIEMPRE aplicar theme guardado lo más temprano posible
   try {
     const saved = localStorage.getItem(THEME_KEY);
     const theme = saved === "light" ? "light" : "dark";
-    // OJO: solo "aseguramos" atributo si no existe aún
-    if (!root.hasAttribute("data-bs-theme")) {
-      root.setAttribute("data-bs-theme", theme);
-      root.dataset.theme = theme;
-    }
+    root.setAttribute("data-bs-theme", theme);
+    root.dataset.theme = theme;
+    document.body?.classList.toggle("theme-light", theme === "light");
   } catch {}
 
-  // 2) CSS del overlay (se adapta por [data-bs-theme])
   const style = document.createElement("style");
   style.id = "boot-style";
   style.textContent = `
@@ -40,36 +36,19 @@
 
     [data-bs-theme="light"] #pageLoader{
       background:
-        radial-gradient(1200px 600px at 12% 8%, rgba(255,140,0,.20), transparent 58%),
-        radial-gradient(900px 520px at 92% 10%, rgba(255,90,0,.14), transparent 52%),
-        radial-gradient(900px 520px at 60% 92%, rgba(255,200,110,.16), transparent 55%),
-        rgba(248,250,255,.88);
+        radial-gradient(1200px 600px at 12% 8%, rgba(255,140,0,.18), transparent 58%),
+        radial-gradient(900px 520px at 92% 10%, rgba(255,90,0,.12), transparent 52%),
+        radial-gradient(900px 520px at 60% 92%, rgba(255,200,110,.14), transparent 55%),
+        rgba(248,250,255,.90);
     }
 
-    .loaderWrap{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:14px;
-      transform: translateY(-6px);
-      animation: floaty 2.2s ease-in-out infinite;
-    }
-    @keyframes floaty{
-      0%,100%{ transform: translateY(-6px); }
-      50%{ transform: translateY(-12px); }
-    }
+    .loaderWrap{ display:flex; flex-direction:column; align-items:center; gap:14px; transform: translateY(-6px); animation: floaty 2.2s ease-in-out infinite; }
+    @keyframes floaty{ 0%,100%{ transform: translateY(-6px); } 50%{ transform: translateY(-12px); } }
 
-    .loaderLogo{
-      width: 78px;
-      height: 78px;
-      object-fit: contain;
-      filter: drop-shadow(0 18px 40px rgba(0,0,0,.42));
-    }
+    .loaderLogo{ width: 78px; height: 78px; object-fit: contain; filter: drop-shadow(0 18px 40px rgba(0,0,0,.42)); }
 
     .loaderRing{
-      width: 44px;
-      height: 44px;
-      border-radius: 999px;
+      width: 44px; height: 44px; border-radius: 999px;
       border: 3px solid rgba(255,255,255,.18);
       border-top-color: rgba(255,255,255,.9);
       animation: spin 1s linear infinite;
@@ -84,7 +63,6 @@
 
   function ensureLoader() {
     if (document.getElementById("pageLoader")) return;
-
     const div = document.createElement("div");
     div.id = "pageLoader";
     div.innerHTML = `
@@ -99,7 +77,6 @@
   function hideLoader() {
     const el = document.getElementById("pageLoader");
     if (!el) return;
-
     el.style.opacity = "0";
     setTimeout(() => {
       el.remove();
@@ -107,22 +84,19 @@
     }, 320);
   }
 
-  // 3) Mostrar loader al inicio
   ensureLoader();
 
-  // 4) Ocultarlo al cargar
   window.addEventListener("load", () => {
     requestAnimationFrame(() => requestAnimationFrame(hideLoader));
   });
 
-  // 5) Mostrar loader al navegar
   window.addEventListener("beforeunload", () => {
     ensureLoader();
     const el = document.getElementById("pageLoader");
     if (el) el.style.opacity = "1";
   });
 
-  // 6) Si cambias tema en otra pestaña, el loader se adapta (por data-bs-theme)
+  // ✅ Sync si cambias tema en otra pestaña
   window.addEventListener("storage", (e) => {
     if (e.key !== THEME_KEY) return;
     try {
@@ -130,6 +104,7 @@
       const theme = saved === "light" ? "light" : "dark";
       root.setAttribute("data-bs-theme", theme);
       root.dataset.theme = theme;
+      document.body?.classList.toggle("theme-light", theme === "light");
     } catch {}
   });
 })();

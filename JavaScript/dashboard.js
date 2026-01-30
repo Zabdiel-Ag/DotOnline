@@ -398,19 +398,9 @@ function renderRecentSalesList(rows = []) {
       ? "—"
       : new Date(ms).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
-    const method = s.payment_method ? String(s.payment_method) : "—";
-    const status = s.status ? String(s.status) : "";
 
     return `
-      <div class="cardx p-2" style="background:rgba(255,255,255,.04);">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="fw-semibold">${fmtMoney(s.total)}</div>
-            <div class="muted small">${escapeHtml(method)} • ${escapeHtml(time)} ${status ? "• " + escapeHtml(status) : ""}</div>
-          </div>
-          <span class="chip">Venta</span>
-        </div>
-      </div>
+
     `;
   }).join("");
 }
