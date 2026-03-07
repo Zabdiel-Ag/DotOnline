@@ -1,8 +1,26 @@
+.pos-wrap{
+  width:min(1260px, 98vw);
+}
 
-.pos-wrap{ width:min(1260px, 98vw); }
+/* =========================
+   LAYOUT GENERAL POS
+========================= */
+@media (min-width: 992px){
+  .pos-wrap .row.align-items-stretch > [class*="col-lg-"]{
+    display: flex;
+  }
+
+  .pos-wrap .row.align-items-stretch > [class*="col-lg-"] > .pos-card{
+    width: 100%;
+    min-height: 460px;
+    max-height: 460px;
+  }
+}
 
 /* Cards principales */
 .pos-card{
+  position: relative;
+  overflow: hidden;
   border-radius: 22px;
   background: rgba(255,255,255,.06);
   border: 1px solid rgba(255,255,255,.14);
@@ -27,8 +45,20 @@
 }
 
 /* Asegura stacking del pseudo */
-.pos-card{ position:relative; overflow:hidden; }
-.pos-card > *{ position:relative; z-index:1; }
+.pos-card > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* Sticky header opcional para buscadores */
+.pos-sticky{
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: transparent;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
 
 /* Listas */
 .pos-list{
@@ -36,21 +66,56 @@
   flex-direction:column;
   gap: 10px;
   padding-right: 6px;
+  min-height: 0;
 }
 
 /* Scroll iOS */
-.pos-list::-webkit-scrollbar{ width: 10px; }
+.pos-list::-webkit-scrollbar{
+  width: 10px;
+}
 .pos-list::-webkit-scrollbar-thumb{
   background: rgba(255,255,255,.12);
   border: 2px solid rgba(0,0,0,0);
   background-clip: padding-box;
   border-radius: 12px;
 }
-.pos-list::-webkit-scrollbar-track{ background: transparent; }
+.pos-list::-webkit-scrollbar-track{
+  background: transparent;
+}
 
-#productList{ max-height: 520px; overflow:auto; }
-#cartList{ max-height: 330px; overflow:auto; }
-.pos-sales .list{ max-height: 220px; overflow:auto; }
+/* =========================
+   ALTURAS FIJAS DE LISTAS
+========================= */
+
+/* Productos: aprox 4 visibles */
+#productList{
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 255px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Carrito: queda fijo y no empuja el resumen */
+#cartList{
+  flex: 0 0 auto;
+  min-height: 24px;
+  max-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-bottom: 10px;
+}
+
+#cartList:empty{
+  min-height: 0;
+  max-height: 0;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.pos-sales .list{
+  max-height: 220px;
+  overflow:auto;
+}
 
 /* Cada item como mini glass card */
 .pos-list .item{
@@ -61,28 +126,35 @@
   box-shadow: 0 10px 24px rgba(0,0,0,.14);
   transition: transform .12s ease, background .12s ease, border-color .12s ease;
 }
+
 .pos-list .item:hover{
   transform: translateY(-1px);
   background: rgba(255,255,255,.08);
   border-color: rgba(255,255,255,.18);
 }
+
 .pos-list .item .item-title{
   font-weight: 700;
   letter-spacing: .2px;
 }
-.pos-list .item .item-sub{ opacity: .78; }
+
+.pos-list .item .item-sub{
+  opacity: .78;
+}
 
 /* Botones mejor “iOS” */
 .pos-list .btn,
 .pos-card .btn{
   border-radius: 14px;
 }
+
 .pos-list .btn-soft,
 .pos-card .btn-soft{
   background: rgba(255,255,255,.08);
   border: 1px solid rgba(255,255,255,.14);
   color: rgba(233,238,245,.92);
 }
+ 
 .pos-list .btn-soft:hover,
 .pos-card .btn-soft:hover{
   background: rgba(255,255,255,.12);
@@ -94,6 +166,7 @@
   border-color: rgba(255,0,80,.30);
   color: rgba(255,120,160,.95);
 }
+
 .pos-list .btn-outline-danger:hover{
   border-color: rgba(255,0,80,.55);
   background: rgba(255,0,80,.08);
@@ -108,7 +181,11 @@
   color: rgba(233,238,245,.92);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
-.pos-card .form-control::placeholder{ color: rgba(233,238,245,.55); }
+
+.pos-card .form-control::placeholder{
+  color: rgba(233,238,245,.55);
+}
+
 .pos-card .form-control:focus,
 .pos-card .form-select:focus{
   background: rgba(255,255,255,.08);
@@ -117,10 +194,8 @@
 }
 
 /* =========================
-   CARRITO: “menos disperso”
+   CARRITO
 ========================= */
-
-/* Ajusta el resumen (Subtotal/Descuento/Total) */
 .summary{
   background: rgba(255,255,255,.05);
   border: 1px solid rgba(255,255,255,.12);
@@ -129,11 +204,14 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
 
-/* Filas del resumen más “pro” */
-.summary .d-flex{ gap: 10px; }
-.summary hr{ margin: 10px 0; }
+.summary .d-flex{
+  gap: 10px;
+}
 
-/* Total más destacado */
+.summary hr{
+  margin: 10px 0;
+}
+
 #totalLabel{
   font-size: 1.35rem;
   letter-spacing: .3px;
@@ -143,14 +221,12 @@
   text-align: right;
 }
 
-/* Método de pago y botón cobrar más compactos */
 #paymentMethod{
   border-radius: 16px;
   padding-top: 10px;
   padding-bottom: 10px;
 }
 
-/* Botón cobrar más iOS */
 #btnCheckout{
   border-radius: 16px;
   padding: 12px 14px;
@@ -159,26 +235,22 @@
   box-shadow: 0 14px 28px rgba(0,0,0,.22);
 }
 
-/* Mensaje de error menos “gritón” */
 #posMsg{
   border-radius: 16px;
   background: rgba(255,0,80,.10);
   border: 1px solid rgba(255,0,80,.22);
 }
 
-/* Header de cada card: más alineado */
 .pos-card .fw-semibold{
   letter-spacing: .2px;
 }
 
-/* =========================
-   Ventas: lista con mejor padding
-========================= */
+/* Ventas */
 .pos-sales .list .item{
   padding: 14px 14px;
 }
 
-/* Chip más iOS (si tienes clase chip en dashboard.css lo refuerza) */
+/* Chip más iOS */
 .chip{
   background: rgba(255,255,255,.08);
   border: 1px solid rgba(255,255,255,.14);
@@ -193,34 +265,53 @@
 }
 
 /* =========================
-   Responsive
+   RESPONSIVE
 ========================= */
 @media (max-width: 992px){
-  #productList{ max-height: 320px; }
-  #cartList{ max-height: 280px; }
-  .pos-sales .list{ max-height: 220px; }
+  .pos-wrap .row.align-items-stretch > [class*="col-lg-"] > .pos-card{
+    min-height: auto;
+    max-height: none;
+  }
+
+  #productList{
+    max-height: 320px;
+  }
+
+  #cartList{
+    max-height: 280px;
+  }
+
+  .pos-sales .list{
+    max-height: 220px;
+  }
 }
+
 @media (max-width: 576px){
-  .pos-card{ padding: 12px !important; }
-  .pos-list .item{ padding: 10px; border-radius: 14px; }
-  #btnCheckout{ padding: 12px 12px; }
+  .pos-card{
+    padding: 12px !important;
+  }
+
+  .pos-list .item{
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  #btnCheckout{
+    padding: 12px 12px;
+  }
 }
 
-
-/* Si tu light mode usa data-bs-theme */
+/* =========================
+   LIGHT MODE
+========================= */
 :root[data-bs-theme="light"] .pos-card,
 :root[data-bs-theme="light"] .pos-list .item,
 :root[data-bs-theme="light"] .summary,
 :root[data-bs-theme="light"] .modal-content.modal-dark{
-  /* glass más “claro” */
   background: rgba(255,255,255,.55);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-
-  /* contorno naranja */
   border: 1px solid rgba(255, 102, 0, 0.541);
-
-  /* glow naranja suave */
   box-shadow:
     0 18px 40px rgba(0,0,0,.10),
     0 0 0 1px rgba(255, 140, 0, .18),
@@ -228,7 +319,7 @@
     inset 0 1px 0 rgba(255,255,255,.55);
 }
 
-/* Tinte “naranja glass” por encima (muy sutil) */
+/* Tinte “naranja glass” por encima */
 :root[data-bs-theme="light"] .pos-card::before{
   background:
     radial-gradient(700px 240px at 12% 0%, rgba(255, 123, 0, 0.349), transparent 62%),
@@ -236,7 +327,7 @@
   opacity: 1;
 }
 
-/* Inputs/selects en light: borde naranja */
+/* Inputs/selects en light */
 :root[data-bs-theme="light"] .pos-card .form-control,
 :root[data-bs-theme="light"] .pos-card .form-select{
   background: rgba(255,255,255,.70);
@@ -255,12 +346,13 @@
   box-shadow: 0 0 0 .20rem rgba(255, 140, 0, .18);
 }
 
-/* Botones soft en light con vibe naranja */
+/* Botones soft en light */
 :root[data-bs-theme="light"] .btn-soft{
   background: rgba(255, 140, 0, .08);
   border: 1px solid rgba(255, 140, 0, .22);
   color: rgba(20,20,25,.88);
 }
+
 :root[data-bs-theme="light"] .btn-soft:hover{
   background: rgba(255, 140, 0, .12);
   border-color: rgba(255, 140, 0, .30);

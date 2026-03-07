@@ -4,35 +4,43 @@ import { supabase } from "./supabaseClient.js";
 /* =========================
    Helpers
 ========================= */
-function $(id){ return document.getElementById(id); }
-
-function money(n){
-  const x = Number(n || 0);
-  return x.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+function $(id) {
+  return document.getElementById(id);
 }
 
-function showErr(msg){
+function money(n) {
+  const x = Number(n || 0);
+  return x.toLocaleString("es-MX", {
+    style: "currency",
+    currency: "MXN"
+  });
+}
+
+function showErr(msg) {
   const el = $("rxErr");
   if (!el) return;
   el.textContent = msg || "Error";
   el.classList.remove("d-none");
 }
 
-function shortId(uuid){
-  try { return String(uuid).split("-")[0].toUpperCase(); }
-  catch { return String(uuid || ""); }
+function shortId(uuid) {
+  try {
+    return String(uuid).split("-")[0].toUpperCase();
+  } catch {
+    return String(uuid || "");
+  }
 }
 
-function getParam(name){
+function getParam(name) {
   const u = new URL(location.href);
   return u.searchParams.get(name);
 }
 
-function getTokenFromUrl(){
+function getTokenFromUrl() {
   return getParam("t") || "";
 }
 
-function pmLabel(pm){
+function pmLabel(pm) {
   const v = String(pm || "").toLowerCase();
   if (v === "cash") return "Efectivo";
   if (v === "card") return "Tarjeta";
@@ -41,14 +49,14 @@ function pmLabel(pm){
   return pm || "—";
 }
 
-function extractRefFromNote(note){
+function extractRefFromNote(note) {
   const s = String(note || "").trim();
   if (!s) return "";
   const m = s.match(/ref\s*:\s*(.+)$/i);
   return m ? String(m[1]).trim() : "";
 }
 
-function safeText(v, fallback="—"){
+function safeText(v, fallback = "—") {
   const s = String(v ?? "").trim();
   return s ? s : fallback;
 }
@@ -56,7 +64,7 @@ function safeText(v, fallback="—"){
 /* =========================
    Supabase fetch
 ========================= */
-async function fetchReceiptByToken(token){
+async function fetchReceiptByToken(token) {
   const { data: link, error: linkErr } = await supabase
     .from("receipt_links")
     .select("token, sale_id, business_id, created_at")
@@ -72,7 +80,9 @@ async function fetchReceiptByToken(token){
     .eq("id", link.business_id)
     .maybeSingle();
 
-  if (bizErr) console.warn("biz fetch warning:", bizErr);
+  if (bizErr) {
+    console.warn("biz fetch warning:", bizErr);
+  }
 
   const { data: sale, error: saleErr } = await supabase
     .from("sales")
@@ -107,17 +117,19 @@ async function fetchReceiptByToken(token){
 }
 
 /* =========================
-   QR inside ticket
+   QR del ticket
 ========================= */
-async function renderQrToCanvas(canvas, text){
+async function renderQrToCanvas(canvas, text) {
   if (!canvas) throw new Error("No existe el canvas #rxQRCanvas");
 
   const ctx2d = canvas.getContext("2d");
-  ctx2d?.clearRect(0, 0, canvas.width, canvas.height);
+  if (ctx2d) {
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+  }
 
   await QRCode.toCanvas(canvas, text, {
     margin: 1,
-    width: 180,
+    width: 190,
     errorCorrectionLevel: "H",
     color: {
       dark: "#000000",
@@ -127,17 +139,72 @@ async function renderQrToCanvas(canvas, text){
 }
 
 /* =========================
+   Fuerza estilo negro + bold
+========================= */
+function forceReceiptBlackStyle() {
+  const area = $("pdfArea");
+  if (!area) return;
+
+  area.style.background = "#ffffff";
+  area.style.color = "#000000";
+  area.style.fontWeight = "700";
+  area.style.width = "80mm";
+  area.style.minHeight = "297mm";
+  area.style.margin = "0 auto";
+
+  const all = area.querySelectorAll("*");
+  all.forEach((el) => {
+    el.style.color = "#000000";
+    el.style.opacity = "1";
+    el.style.textShadow = "none";
+    el.style.filter = "none";
+    el.style.fontWeight = "700";
+  });
+
+  const strongs = area.querySelectorAll(
+    "#rxBizName, #rxBizMeta, #rxDate, #rxFolio, #rxPayMethod, #rxPayRef, #rxNote, #rxSubtotal, #rxDiscount, #rxTax, #rxTotal, #rxThanks, #rxItemsCount, .item, .item-name, .item-name .n, .item-name .s, .item-total, .title, .section-title, strong, b, h1, h2, h3, h4, h5, h6"
+  );
+
+  strongs.forEach((el) => {
+    el.style.color = "#000000";
+    el.style.fontWeight = "800";
+  });
+
+  const lines = area.querySelectorAll("hr, .divider");
+  lines.forEach((el) => {
+    el.style.border = "0";
+    el.style.borderTop = "1px solid #000000";
+    el.style.opacity = "1";
+  });
+
+  const logoEl = $("rxLogo");
+  if (logoEl && logoEl.src) {
+    logoEl.style.display = "block";
+    logoEl.style.margin = "0 auto 8px auto";
+  }
+
+  const qr = $("rxQRCanvas");
+  if (qr) {
+    qr.style.display = "block";
+    qr.style.margin = "12px auto 0 auto";
+    qr.style.background = "#ffffff";
+  }
+}
+
+/* =========================
    Render ticket
 ========================= */
-function renderReceipt({ biz, sale, shareUrl }){
+function renderReceipt({ biz, sale, shareUrl }) {
   const bizName = biz?.name || "Mi POS";
-  $("rxBizName").textContent = bizName;
+
+  if ($("rxBizName")) $("rxBizName").textContent = bizName;
 
   const meta = [
     biz?.category ? biz.category : null,
-    biz?.handle ? `@${biz.handle}` : null,
+    biz?.handle ? `@${biz.handle}` : null
   ].filter(Boolean).join(" • ");
-  $("rxBizMeta").textContent = meta || "—";
+
+  if ($("rxBizMeta")) $("rxBizMeta").textContent = meta || "—";
 
   const logoEl = $("rxLogo");
   const logoUrl = biz?.logo_url || "";
@@ -150,47 +217,74 @@ function renderReceipt({ biz, sale, shareUrl }){
     }
   }
 
-  $("rxDate").textContent = new Date(sale.created_at).toLocaleString("es-MX");
-  $("rxFolio").textContent = shortId(sale.id);
+  if ($("rxDate")) {
+    $("rxDate").textContent = new Date(sale.created_at).toLocaleString("es-MX");
+  }
 
-  $("rxPayMethod").textContent = pmLabel(sale.payment_method);
-  $("rxPayRef").textContent = extractRefFromNote(sale.note) || "—";
-  $("rxNote").textContent = sale.note ? String(sale.note) : "—";
+  if ($("rxFolio")) {
+    $("rxFolio").textContent = shortId(sale.id);
+  }
 
-  $("rxSubtotal").textContent = money(sale.subtotal);
-  $("rxDiscount").textContent = money(sale.discount);
-  $("rxTax").textContent = money(sale.tax);
-  $("rxTotal").textContent = money(sale.total);
+  if ($("rxPayMethod")) {
+    $("rxPayMethod").textContent = pmLabel(sale.payment_method);
+  }
+
+  if ($("rxPayRef")) {
+    $("rxPayRef").textContent = extractRefFromNote(sale.note) || "—";
+  }
+
+  if ($("rxNote")) {
+    $("rxNote").textContent = sale.note ? String(sale.note) : "—";
+  }
+
+  if ($("rxSubtotal")) $("rxSubtotal").textContent = money(sale.subtotal);
+  if ($("rxDiscount")) $("rxDiscount").textContent = money(sale.discount);
+  if ($("rxTax")) $("rxTax").textContent = money(sale.tax);
+  if ($("rxTotal")) $("rxTotal").textContent = money(sale.total);
 
   const items = sale.sale_items || [];
-  $("rxItemsCount").textContent = `${items.length}`;
+  if ($("rxItemsCount")) $("rxItemsCount").textContent = `${items.length}`;
 
   const wrap = $("rxItems");
-  wrap.innerHTML = "";
+  if (wrap) {
+    wrap.innerHTML = "";
 
-  if (!items.length){
-    wrap.innerHTML = `<div class="t-muted t-small">Sin items.</div>`;
-  } else {
-    for (const it of items){
-      const name = safeText(it.name);
-      const qty = Number(it.qty || 0);
-      const unit = money(it.unit_price);
-      const total = money(it.line_total);
+    if (!items.length) {
+      wrap.innerHTML = `<div class="t-muted t-small" style="color:#000;font-weight:700;">Sin items.</div>`;
+    } else {
+      for (const it of items) {
+        const name = safeText(it.name);
+        const qty = Number(it.qty || 0);
+        const unit = money(it.unit_price);
+        const total = money(it.line_total);
 
-      const row = document.createElement("div");
-      row.className = "item";
-      row.innerHTML = `
-        <div class="item-name">
-          <div class="n fw-bold">${name}</div>
-          <div class="s">${qty} x ${unit}</div>
-        </div>
-        <div class="item-total fw-bold">${total}</div>
-      `;
-      wrap.appendChild(row);
+        const row = document.createElement("div");
+        row.className = "item";
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "flex-start";
+        row.style.gap = "8px";
+        row.style.padding = "6px 0";
+        row.style.borderBottom = "1px solid #000";
+
+        row.innerHTML = `
+          <div class="item-name" style="flex:1; color:#000; font-weight:700;">
+            <div class="n" style="color:#000; font-weight:800;">${name}</div>
+            <div class="s" style="color:#000; font-weight:700;">${qty} x ${unit}</div>
+          </div>
+          <div class="item-total" style="color:#000; font-weight:800; white-space:nowrap;">${total}</div>
+        `;
+
+        wrap.appendChild(row);
+      }
     }
   }
 
-  $("rxThanks").textContent = `Gracias por tu compra 💙 — ${bizName}`;
+  if ($("rxThanks")) {
+    $("rxThanks").textContent = `Gracias por tu compra 💙 — ${bizName}`;
+  }
+
+  forceReceiptBlackStyle();
 
   const c = $("rxQRCanvas");
   return renderQrToCanvas(c, shareUrl);
@@ -199,15 +293,15 @@ function renderReceipt({ biz, sale, shareUrl }){
 /* =========================
    PDF 80x297mm
 ========================= */
-async function downloadTicketPdf(){
-  const area = document.getElementById("pdfArea");
+async function downloadTicketPdf() {
+  const area = $("pdfArea");
   if (!area) throw new Error("No existe #pdfArea");
 
-  // Fuerza estilo para exportación nítida
+  forceReceiptBlackStyle();
   area.classList.add("pdf-render-mode");
 
   const canvas = await html2canvas(area, {
-    scale: 4,                 // antes 2, ahora más nítido
+    scale: 4,
     useCORS: true,
     backgroundColor: "#ffffff",
     logging: false,
@@ -234,21 +328,17 @@ async function downloadTicketPdf(){
     compress: false
   });
 
-  // margen pequeño para centrar visualmente
   const marginPt = 8;
   const usableW = pageWpt - (marginPt * 2);
-
   const imgWpt = usableW;
   const imgHpt = (canvas.height * imgWpt) / canvas.width;
 
-  let y = 10; // pequeño respiro arriba
+  let y = 10;
 
   if (imgHpt <= pageHpt - 20) {
-    // Centrado vertical
     y = (pageHpt - imgHpt) / 2;
     pdf.addImage(imgData, "PNG", marginPt, y, imgWpt, imgHpt, undefined, "FAST");
   } else {
-    // Si llega a exceder, se pega arriba pero manteniendo ancho de 80mm
     pdf.addImage(imgData, "PNG", marginPt, 10, imgWpt, imgHpt, undefined, "FAST");
   }
 
@@ -258,36 +348,46 @@ async function downloadTicketPdf(){
 }
 
 /* =========================
-   Print directly
+   Imprimir directo
 ========================= */
-function printTicket(){
+function printTicket() {
+  forceReceiptBlackStyle();
   window.print();
 }
 
 /* =========================
    Buttons
 ========================= */
-function wireButtons(){
+function wireButtons() {
   $("btnCopy")?.addEventListener("click", async () => {
-    try{
+    try {
       await navigator.clipboard.writeText(location.href);
       $("btnCopy").innerHTML = `<i class="bi bi-check2 me-1"></i> Copiado`;
+
       setTimeout(() => {
         $("btnCopy").innerHTML = `<i class="bi bi-clipboard me-1"></i> Copiar link`;
       }, 1200);
-    }catch{
+    } catch {
       showErr("No pude copiar el link 😅");
     }
   });
 
   $("btnPdf")?.addEventListener("click", async () => {
-    try { await downloadTicketPdf(); }
-    catch(e){ console.error(e); showErr(e?.message || String(e)); }
+    try {
+      await downloadTicketPdf();
+    } catch (e) {
+      console.error(e);
+      showErr(e?.message || String(e));
+    }
   });
 
   $("btnPrint")?.addEventListener("click", () => {
-    try { printTicket(); }
-    catch(e){ console.error(e); showErr(e?.message || String(e)); }
+    try {
+      printTicket();
+    } catch (e) {
+      console.error(e);
+      showErr(e?.message || String(e));
+    }
   });
 }
 
@@ -298,23 +398,32 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireButtons();
 
   const token = getTokenFromUrl();
-  if (!token) return showErr("Falta el token (?t=...)");
+  if (!token) {
+    showErr("Falta el token (?t=...)");
+    return;
+  }
 
   const shareUrl = `${location.origin}/recibo.html?t=${encodeURIComponent(token)}`;
 
-  try{
+  try {
     const { biz, sale } = await fetchReceiptByToken(token);
 
     await renderReceipt({ biz, sale, shareUrl });
+    forceReceiptBlackStyle();
 
     if (String(getParam("pdf") || "") === "1") {
-      setTimeout(() => downloadTicketPdf().catch(console.error), 450);
+      setTimeout(() => {
+        downloadTicketPdf().catch(console.error);
+      }, 450);
     }
 
     if (String(getParam("print") || "") === "1") {
-      setTimeout(() => window.print(), 500);
+      setTimeout(() => {
+        forceReceiptBlackStyle();
+        window.print();
+      }, 500);
     }
-  }catch(e){
+  } catch (e) {
     console.error("recibo error:", e);
     showErr(e?.message || String(e));
   }
