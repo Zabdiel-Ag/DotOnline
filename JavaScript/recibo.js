@@ -107,23 +107,24 @@ async function fetchReceiptByToken(token){
 }
 
 /* =========================
-   QR inside ticket (global QRCode from qrcode.min.js)
+   QR inside ticket
 ========================= */
 async function renderQrToCanvas(canvas, text){
-    if (!canvas) throw new Error("No existe el canvas #rmQR");
+  if (!canvas) throw new Error("No existe el canvas #rxQRCanvas");
 
   const ctx2d = canvas.getContext("2d");
   ctx2d?.clearRect(0, 0, canvas.width, canvas.height);
 
   await QRCode.toCanvas(canvas, text, {
     margin: 1,
-    width: 170,
-    errorCorrectionLevel: "M",
+    width: 180,
+    errorCorrectionLevel: "H",
+    color: {
+      dark: "#000000",
+      light: "#FFFFFF"
+    }
   });
 }
-
-
-
 
 /* =========================
    Render ticket
@@ -180,10 +181,10 @@ function renderReceipt({ biz, sale, shareUrl }){
       row.className = "item";
       row.innerHTML = `
         <div class="item-name">
-          <div class="n">${name}</div>
+          <div class="n fw-bold">${name}</div>
           <div class="s">${qty} x ${unit}</div>
         </div>
-        <div class="item-total">${total}</div>
+        <div class="item-total fw-bold">${total}</div>
       `;
       wrap.appendChild(row);
     }
@@ -191,71 +192,76 @@ function renderReceipt({ biz, sale, shareUrl }){
 
   $("rxThanks").textContent = `Gracias por tu compra 💙 — ${bizName}`;
 
-  //  QR con el link "share" (abre el recibo)
   const c = $("rxQRCanvas");
   return renderQrToCanvas(c, shareUrl);
 }
 
 /* =========================
-   PDF 80mm (thermal ticket)
+   PDF 80x297mm
 ========================= */
 async function downloadTicketPdf(){
   const area = document.getElementById("pdfArea");
   if (!area) throw new Error("No existe #pdfArea");
 
-  // Render DOM -> canvas
+  // Fuerza estilo para exportación nítida
+  area.classList.add("pdf-render-mode");
+
   const canvas = await html2canvas(area, {
-    scale: 2,
+    scale: 4,                 // antes 2, ahora más nítido
     useCORS: true,
     backgroundColor: "#ffffff",
+    logging: false,
+    letterRendering: true,
+    imageTimeout: 0
   });
 
-  const imgData = canvas.toDataURL("image/png");
+  area.classList.remove("pdf-render-mode");
 
-  // Ticket width: 80mm
-  // 1mm ≈ 2.8346 pt
+  const imgData = canvas.toDataURL("image/png", 1.0);
+
   const MM_TO_PT = 2.834645669;
   const pageWmm = 80;
+  const pageHmm = 297;
   const pageWpt = pageWmm * MM_TO_PT;
-
-  // Altura dinámica basada en la imagen
-  const imgWpt = pageWpt;
-  const imgHpt = (canvas.height * imgWpt) / canvas.width;
+  const pageHpt = pageHmm * MM_TO_PT;
 
   const { jsPDF } = window.jspdf;
 
-  // Creamos pdf con tamaño personalizado: [ancho, alto] en puntos
-  // Si es muy alto, hacemos multipágina a 80mm
-  const pageHpt = 420 * MM_TO_PT; // ~420mm por página (suficiente), o usamos multipage
   const pdf = new jsPDF({
     orientation: "p",
     unit: "pt",
-    format: [pageWpt, Math.min(imgHpt, pageHpt)],
+    format: [pageWpt, pageHpt],
+    compress: false
   });
 
-  if (imgHpt <= pageHpt) {
-    pdf.addImage(imgData, "PNG", 0, 0, imgWpt, imgHpt);
+  // margen pequeño para centrar visualmente
+  const marginPt = 8;
+  const usableW = pageWpt - (marginPt * 2);
+
+  const imgWpt = usableW;
+  const imgHpt = (canvas.height * imgWpt) / canvas.width;
+
+  let y = 10; // pequeño respiro arriba
+
+  if (imgHpt <= pageHpt - 20) {
+    // Centrado vertical
+    y = (pageHpt - imgHpt) / 2;
+    pdf.addImage(imgData, "PNG", marginPt, y, imgWpt, imgHpt, undefined, "FAST");
   } else {
-    // multipágina: cortamos por “ventanas” verticales
-    // Usamos el truco de dibujar la misma imagen con y negativo
-    let remaining = imgHpt;
-    let y = 0;
-
-    // primera página ya creada
-    pdf.addImage(imgData, "PNG", 0, y, imgWpt, imgHpt);
-    remaining -= pageHpt;
-
-    while (remaining > 0) {
-      pdf.addPage([pageWpt, Math.min(pageHpt, remaining)]);
-      y -= pageHpt;
-      pdf.addImage(imgData, "PNG", 0, y, imgWpt, imgHpt);
-      remaining -= pageHpt;
-    }
+    // Si llega a exceder, se pega arriba pero manteniendo ancho de 80mm
+    pdf.addImage(imgData, "PNG", marginPt, 10, imgWpt, imgHpt, undefined, "FAST");
   }
 
   const folio = (document.getElementById("rxFolio")?.textContent || "RECIBO").trim();
   const fileName = `Ticket_${folio}.pdf`.replace(/\s+/g, "_");
   pdf.save(fileName);
+}
+
+/* =========================
+   Print directly
+========================= */
+function printTicket(){
+  window.print();
 }
 
 /* =========================
@@ -278,6 +284,11 @@ function wireButtons(){
     try { await downloadTicketPdf(); }
     catch(e){ console.error(e); showErr(e?.message || String(e)); }
   });
+
+  $("btnPrint")?.addEventListener("click", () => {
+    try { printTicket(); }
+    catch(e){ console.error(e); showErr(e?.message || String(e)); }
+  });
 }
 
 /* =========================
@@ -289,18 +300,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   const token = getTokenFromUrl();
   if (!token) return showErr("Falta el token (?t=...)");
 
-  //  Este es el link “share” que el QR debe contener (sin obligar pdf)
   const shareUrl = `${location.origin}/recibo.html?t=${encodeURIComponent(token)}`;
 
   try{
     const { biz, sale } = await fetchReceiptByToken(token);
 
-    // Render ticket + QR
     await renderReceipt({ biz, sale, shareUrl });
 
-    // Si viene pdf=1 -> auto descarga el PDF ticket
     if (String(getParam("pdf") || "") === "1") {
       setTimeout(() => downloadTicketPdf().catch(console.error), 450);
+    }
+
+    if (String(getParam("print") || "") === "1") {
+      setTimeout(() => window.print(), 500);
     }
   }catch(e){
     console.error("recibo error:", e);
